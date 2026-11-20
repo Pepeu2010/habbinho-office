@@ -18,6 +18,7 @@ import { StrategicCamera } from './camera';
 import { Avatars } from './characters';
 import { Labels } from './labels';
 import { LookStore } from './looks';
+import { createLookEditor } from './editor';
 import { screenModeFor } from './screens';
 import { loadQuality, saveQuality, Stage, type Quality } from './stage';
 
@@ -565,6 +566,10 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       hoverCbs.clear();
       socialCbs.clear();
       soundCbs.clear();
+    },
+    lookEditor: (id) => {
+      const info = sim.chars.get(id)?.info ?? store.snapshot?.agents.find((a) => a.id === id);
+      return info ? createLookEditor(info, assets, looks) : null;
     },
     getQuality: () => stage.quality,
     setQuality: (q) => {

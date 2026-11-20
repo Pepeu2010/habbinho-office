@@ -11,7 +11,8 @@ import { clipForPose, resolveClip } from './anim-map';
 import { BONE, CHAR_H, defaultModelFor, modelById, type CharacterAssets, type CharacterModelDef, type LoadedModel } from './assets';
 import { SEAT_H, STOOL_H } from './furniture';
 import { PAL, cyl, mat, rbox, sphere } from './kit';
-import { applyLook, type LookStore } from './looks';
+import { attachToHead, buildAccessory } from './accessories';
+import { applyLook, type Look, type LookStore } from './looks';
 
 /** Altura do assento por tipo de lugar (topo da almofada). */
 function seatHeight(kind: SpotKind | undefined): number {
@@ -40,6 +41,7 @@ export interface AvatarView {
   /** Ponto acima da cabeça (para etiquetas). */
   head: THREE.Vector3;
   visible: boolean;
+  badge?: string;
 }
 
 class Avatar implements AvatarView {
@@ -68,6 +70,9 @@ class Avatar implements AvatarView {
   readonly ring: THREE.Mesh;
   private shadowBlob: THREE.Mesh;
   private lookKey = '';
+  private accessory: THREE.Object3D | null = null;
+  /** Identificação profissional escolhida no editor (etiqueta). */
+  badge = '';
 
   constructor(readonly id: string) {
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.4, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, depthWrite: false }));
@@ -125,6 +130,7 @@ class Avatar implements AvatarView {
     this.sitHips = this.measureSitHips();
     this.heldKind = 'none';
     this.heldObj = null;
+    this.accessory = null;
   }
 
   /** Altura do quadril (acima dos pés) na pose sentada: posiciona o boneco sobre cada assento. */
@@ -220,7 +226,7 @@ class Avatar implements AvatarView {
     const look = looks.get(ch.id, ch.info);
     if (look.key !== this.lookKey) {
       this.lookKey = look.key;
-      applyLook(this.materials, this.model, look);
+      this.applyLookNow(look);
     }
 
     // animação
@@ -266,6 +272,17 @@ class Avatar implements AvatarView {
       this.headBone.getWorldPosition(this.head);
       this.head.y += 0.62;
     } else this.head.set(this.pos.x, CHAR_H + 0.2, this.pos.z);
+  }
+
+  /** Atlas recolorido, acessório na cabeça e identificação. */
+  applyLookNow(look: Look): void {
+    if (!this.model) return;
+    applyLook(this.materials, this.model, look);
+    this.accessory?.parent?.remove(this.accessory);
+    this.accessory = null;
+    const acc = look.accessory ? buildAccessory(look.accessory, this.model.head, look.accessoryColor) : null;
+    if (acc && this.headBone) this.accessory = attachToHead(this.headBone, acc, this.model.head, this.model.scale);
+    this.badge = look.badge ?? '';
   }
 
   private syncHeld(kind: HeldItem): void {

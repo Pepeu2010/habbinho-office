@@ -77,3 +77,14 @@
     transition: none;
   }
 }
+.w3d-badge {
+  font: 600 9px/1 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1e2126;
+  background: #e8dcc4;
+  padding: 2px 6px 3px;
+  border-radius: 999px;
+  margin-top: -2px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

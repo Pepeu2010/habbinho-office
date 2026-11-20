@@ -101,7 +101,22 @@ export interface WorldApi {
   /** (Opcional, aditivo) Qualidade gráfica (só o mundo 3D tem; o 2D não implementa). */
   getQuality?(): GraphicsQuality;
   setQuality?(q: GraphicsQuality): void;
+  /**
+   * (Opcional, aditivo) Editor da aparência própria do mundo (só o 3D tem): a UI monta `el` dentro do editor de
+   * personagem e chama save() ao salvar, dispose() ao fechar. null = sem editor para esse agente.
+   */
+  lookEditor?(agentId: string): LookEditorHandle | null;
   destroy(): void;
+}
+
+export interface LookEditorHandle {
+  el: HTMLElement;
+  /** Grava a escolha (no navegador). */
+  save(): void;
+  /** Apaga a escolha (volta ao padrão). */
+  reset(): void;
+  /** Fecha sem gravar e libera a prévia. */
+  dispose(): void;
 }
 
 /** Presets gráficos do mundo 3D. */

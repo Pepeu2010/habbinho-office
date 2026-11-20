@@ -14,6 +14,8 @@ const RECENT_MS = 4000;
 interface Tag {
   el: HTMLDivElement;
   name: HTMLSpanElement;
+  badge: HTMLSpanElement;
+  badgeText: string;
   bubble: HTMLDivElement;
   text: string;
   nameText: string;
@@ -53,6 +55,12 @@ export class Labels {
         t.name.textContent = nameText;
       }
       t.name.hidden = !opts.showNames && ch.id !== selected && ch.id !== hovered;
+      const badge = av.badge ?? '';
+      if (badge !== t.badgeText) {
+        t.badgeText = badge;
+        t.badge.textContent = badge;
+      }
+      t.badge.hidden = !badge || t.name.hidden;
       const text = bubble ? `${bubble.icon} ${bubble.text}` : '';
       if (text !== t.text) {
         t.text = text;
@@ -87,9 +95,12 @@ export class Labels {
     bubble.hidden = true;
     const name = document.createElement('span');
     name.className = 'w3d-name';
-    el.append(bubble, name);
+    const badge = document.createElement('span');
+    badge.className = 'w3d-badge';
+    badge.hidden = true;
+    el.append(bubble, name, badge);
     this.root.appendChild(el);
-    const t: Tag = { el, name, bubble, text: '', nameText: '', tone: '' };
+    const t: Tag = { el, name, badge, badgeText: '', bubble, text: '', nameText: '', tone: '' };
     this.tags.set(id, t);
     return t;
   }

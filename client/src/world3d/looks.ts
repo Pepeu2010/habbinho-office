@@ -13,17 +13,33 @@ const CELL_W = 32;
 const CELL_H = 128;
 const COLS = 16;
 
-export interface Look {
-  /** Assinatura (muda quando qualquer escolha muda). */
-  key: string;
+/** Acessórios 3D (modelados em accessories.ts), presos à cabeça do boneco. */
+export const ACCESSORIES_3D = ['none', 'glasses', 'sunglasses', 'cap', 'beanie', 'headphones', 'bow'] as const;
+export type Accessory3D = (typeof ACCESSORIES_3D)[number];
+export const BADGE_MAX = 24;
+
+/** O que o editor escolhe (sem a assinatura). */
+export interface LookDraft {
   model?: string;
   /** Cor nova por célula do atlas (índice = linha * 16 + coluna). */
   colors: Record<number, string>;
+  accessory?: Accessory3D;
+  accessoryColor?: string;
+  /** Identificação profissional (aparece na etiqueta). */
+  badge?: string;
+}
+
+export interface Look extends LookDraft {
+  /** Assinatura (muda quando qualquer escolha muda). */
+  key: string;
 }
 
 interface Stored {
   model?: string;
   colors?: Record<string, string>;
+  accessory?: Accessory3D;
+  accessoryColor?: string;
+  badge?: string;
 }
 
 const DEFAULT: Look = { key: 'default', colors: {} };
@@ -51,21 +67,27 @@ export class LookStore {
     let l = this.cache.get(k);
     if (!l) {
       const s = this.data[k];
-      if (!s) l = DEFAULT;
-      else {
-        const colors: Record<number, string> = {};
-        for (const [i, c] of Object.entries(s.colors ?? {})) colors[Number(i)] = c;
-        l = { key: JSON.stringify(s), model: s.model, colors };
-      }
+      l = s ? toLook(s) : DEFAULT;
       this.cache.set(k, l);
     }
     return l;
   }
 
-  set(info: Pick<AgentInfo, 'seed'>, look: { model?: string; colors: Record<number, string> } | null): void {
+  /** Guarda (validado como o que vem do armazenamento); null volta ao padrão. */
+  set(info: Pick<AgentInfo, 'seed'>, look: LookDraft | null): void {
     const k = LookStore.idOf(info);
     if (!look) delete this.data[k];
-    else this.data[k] = { model: look.model, colors: Object.fromEntries(Object.entries(look.colors).map(([i, c]) => [String(i), c])) };
+    else {
+      const raw: Stored = {
+        model: look.model,
+        colors: Object.fromEntries(Object.entries(look.colors).map(([i, c]) => [String(i), c])),
+        accessory: look.accessory,
+        accessoryColor: look.accessoryColor,
+        badge: look.badge,
+      };
+      const clean = sanitize({ [k]: raw })[k];
+      if (clean) this.data[k] = clean;
+    }
     this.cache.delete(k);
     try {
       this.storage?.setItem(KEY, JSON.stringify(this.data));
@@ -79,6 +101,15 @@ export class LookStore {
     this.listeners.add(cb);
     return () => void this.listeners.delete(cb);
   }
+}
+
+/** Assinatura estável de uma aparência (o avatar só refaz o atlas/acessório quando ela muda). */
+export function toLook(s: Stored | LookDraft): Look {
+  const colors: Record<number, string> = {};
+  for (const [i, c] of Object.entries(s.colors ?? {})) colors[Number(i)] = c;
+  const d: LookDraft = { model: s.model, colors, accessory: s.accessory, accessoryColor: s.accessoryColor, badge: s.badge };
+  const key = JSON.stringify([d.model ?? '', Object.entries(colors).sort(), d.accessory ?? '', d.accessoryColor ?? '', d.badge ?? '']);
+  return { ...d, key };
 }
 
 function safeStorage(): Storage | null {
@@ -106,6 +137,13 @@ export function sanitize(raw: unknown): Record<string, Stored> {
       for (const [i, c] of Object.entries(s.colors)) if (/^\d{1,3}$/.test(i) && Number(i) < 256 && typeof c === 'string' && HEX.test(c)) colors[i] = c.toLowerCase();
       st.colors = colors;
     }
+    if (typeof s.accessory === 'string' && (ACCESSORIES_3D as readonly string[]).includes(s.accessory) && s.accessory !== 'none') st.accessory = s.accessory;
+    if (typeof s.accessoryColor === 'string' && HEX.test(s.accessoryColor)) st.accessoryColor = s.accessoryColor.toLowerCase();
+    if (typeof s.badge === 'string') {
+      // texto livre, mas curto e sem caracteres de controle (vai para o DOM como textContent)
+      const b = s.badge.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, BADGE_MAX);
+      if (b) st.badge = b;
+    }
     out[k] = st;
   }
   return out;
@@ -121,12 +159,21 @@ export interface AtlasRegion {
   height: number;
   /** Fração dos vértices da malha. */
   weight: number;
+  /** Fração dos vértices da célula em cada faixa de altura: pés, pernas, tronco, cabeça (ver BANDS). */
+  bands?: [number, number, number, number];
+}
+
+/** Faixas de altura (0 = pés, 1 = topo) de um boneco chibi: a cabeça ocupa quase metade do corpo. */
+export const BANDS = [0.1, 0.33, 0.58] as const;
+
+function bandOf(h: number): 0 | 1 | 2 | 3 {
+  return h < BANDS[0] ? 0 : h < BANDS[1] ? 1 : h < BANDS[2] ? 2 : 3;
 }
 
 /** Células do atlas usadas pela malha, da cabeça para os pés (para o editor listar as regiões). */
 export function atlasRegions(model: LoadedModel): AtlasRegion[] {
   const img = model.atlas?.image as CanvasImageSource | undefined;
-  const sums = new Map<number, { n: number; y: number }>();
+  const sums = new Map<number, { n: number; y: number; ys: number[] }>();
   let minY = Infinity;
   let maxY = -Infinity;
   let total = 0;
@@ -145,9 +192,10 @@ export function atlasRegions(model: LoadedModel): AtlasRegion[] {
       v.applyMatrix4(m.matrixWorld);
       minY = Math.min(minY, v.y);
       maxY = Math.max(maxY, v.y);
-      const s = sums.get(cell) ?? { n: 0, y: 0 };
+      const s = sums.get(cell) ?? { n: 0, y: 0, ys: [] };
       s.n++;
       s.y += v.y;
+      s.ys.push(v.y);
       sums.set(cell, s);
       total++;
     }
@@ -156,7 +204,10 @@ export function atlasRegions(model: LoadedModel): AtlasRegion[] {
   const out: AtlasRegion[] = [];
   for (const [cell, s] of sums) {
     const color = ctx ? cellColor(ctx, cell) : '#888888';
-    out.push({ cell, color, height: (s.y / s.n - minY) / Math.max(1e-6, maxY - minY), weight: s.n / Math.max(1, total) });
+    const span = Math.max(1e-6, maxY - minY);
+    const bands: [number, number, number, number] = [0, 0, 0, 0];
+    for (const y of s.ys) bands[bandOf((y - minY) / span)] += 1 / s.n;
+    out.push({ cell, color, height: (s.y / s.n - minY) / span, weight: s.n / Math.max(1, total), bands });
   }
   return out.filter((r) => r.weight > 0.01).sort((a, b) => b.height - a.height);
 }
@@ -237,4 +288,28 @@ function paintCell(ctx: CanvasRenderingContext2D, cell: number, hex: string): vo
   g.addColorStop(1, '#' + lo.getHexString());
   ctx.fillStyle = g;
   ctx.fillRect(x, y, CELL_W, CELL_H);
+}
+
+export type RegionKind = 'hair' | 'skin' | 'top' | 'bottom' | 'shoes' | 'detail';
+
+/** Tom de pele: matiz alaranjada, vermelho > verde > azul, saturação e luz moderadas. */
+export function isSkinTone(hex: string): boolean {
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl, THREE.SRGBColorSpace);
+  const deg = hsl.h * 360;
+  return c.r > c.g && c.g > c.b && deg >= 8 && deg <= 45 && hsl.s >= 0.15 && hsl.s <= 0.9 && hsl.l >= 0.25 && hsl.l <= 0.88;
+}
+
+/**
+ * O que uma região do atlas pinta, pela altura média dos vértices e pela cor. Heurística (os modelos não nomeiam as
+ * partes): pele em qualquer altura; acima do pescoço o resto é cabelo/chapéu; depois tronco, pernas e pés.
+ */
+export function regionKind(r: Pick<AtlasRegion, 'height' | 'color' | 'weight' | 'bands'>): RegionKind {
+  if (isSkinTone(r.color) && r.height > 0.15) return 'skin';
+  if (r.weight < 0.02) return 'detail';
+  // faixa onde está a maior parte dos vértices (a média engana quando a mesma cor pinta cabelo e sapatos)
+  let band = bandOf(r.height);
+  if (r.bands) band = r.bands.indexOf(Math.max(...r.bands)) as 0 | 1 | 2 | 3;
+  return (['shoes', 'bottom', 'top', 'hair'] as const)[band];
 }

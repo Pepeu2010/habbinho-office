@@ -61,6 +61,58 @@ export interface LoadedModel {
   bones: string[];
   /** Cores do atlas usadas pela malha (para o editor recolorir), por região. */
   atlas: THREE.Texture | null;
+  /** Medidas da cabeça em repouso (acessórios), em tiles, no referencial do osso da cabeça alinhado ao corpo. */
+  head: HeadInfo;
+}
+
+export interface HeadInfo {
+  /** Do osso da cabeça até o topo, a frente, a nuca e a lateral. */
+  top: number;
+  front: number;
+  back: number;
+  halfW: number;
+  /** Rotação e escala do osso da cabeça em relação à raiz do modelo, em repouso. */
+  restQuat: THREE.Quaternion;
+  restScale: number;
+}
+
+/** Caixa da cabeça: vértices acima do osso da cabeça, medidos na pose de repouso. */
+function measureHead(scene: THREE.Object3D, bones: string[], scale: number): HeadInfo {
+  scene.updateMatrixWorld(true);
+  const head = scene.getObjectByName(bones[BONE.head] ?? '');
+  const fallback: HeadInfo = { top: 0.42, front: 0.2, back: 0.2, halfW: 0.22, restQuat: new THREE.Quaternion(), restScale: 1 };
+  if (!head) return fallback;
+  const hp = head.getWorldPosition(new THREE.Vector3());
+  const hq = head.getWorldQuaternion(new THREE.Quaternion());
+  const hs = head.getWorldScale(new THREE.Vector3()).x;
+  // o repouso é a pose T: os braços ficam na altura do osso da cabeça. Só conta o que está bem acima dos ombros.
+  const pts: THREE.Vector3[] = [];
+  let maxY = -Infinity;
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3();
+      if (m.isSkinnedMesh) m.getVertexPosition(i, v);
+      else v.fromBufferAttribute(pos, i);
+      v.applyMatrix4(m.matrixWorld);
+      if (v.y > hp.y) pts.push(v);
+      maxY = Math.max(maxY, v.y);
+    }
+  });
+  const cut = hp.y + (maxY - hp.y) * 0.25;
+  const box = new THREE.Box3();
+  for (const v of pts) if (v.y > cut) box.expandByPoint(v);
+  if (box.isEmpty()) return fallback;
+  return {
+    top: (box.max.y - hp.y) * scale,
+    front: (box.max.z - hp.z) * scale,
+    back: (hp.z - box.min.z) * scale,
+    halfW: (Math.max(box.max.x - hp.x, hp.x - box.min.x)) * scale,
+    restQuat: hq,
+    restScale: hs,
+  };
 }
 
 export const BONE = { root: 0, hips: 1, legL: 2, footL: 3, legR: 4, footR: 5, chest: 6, armL: 7, handL: 8, armR: 9, handR: 10, neck: 11, head: 12 } as const;
@@ -220,6 +272,7 @@ export class CharacterAssets {
           clips: this.library.forModel(bones, hips),
           bones,
           atlas,
+          head: measureHead(scene, bones, CHAR_H / height),
         };
         return model;
       });

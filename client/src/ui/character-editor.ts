@@ -12,6 +12,7 @@ import { h, iconButton, setAttr, setHidden, setText } from './dom';
 import { ICONS } from './icons';
 import { access } from '../net/access';
 import { tr } from '../../../shared/i18n';
+import type { LookEditorHandle } from '../world/api';
 
 function randomSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0];
@@ -36,6 +37,10 @@ export class CharacterEditor {
   private readonly error: HTMLElement;
   private readonly saveBtn: HTMLButtonElement;
   private readonly resetBtn: HTMLButtonElement;
+  /** Aparência própria do mundo 3D (montada só quando o mundo oferece editor). */
+  private look3d: LookEditorHandle | null = null;
+  private readonly slot3d: HTMLElement;
+  private readonly title2d: HTMLElement;
 
   constructor(private ctx: UiContext) {
     this.button = iconButton(ICONS.pencil, tr('Editar personagem'), () => (this.editing ? this.cancel() : this.start()), 'ui-icon-btn--sm ui-char-edit');
@@ -58,6 +63,8 @@ export class CharacterEditor {
         h('div', { class: 'ui-char__head' }, h('label', { class: 'ui-char__label' }, h('span', { text: tr('Nome') }), this.nameInput), roll),
       ),
       h('p', { class: 'ui-muted ui-small', text: tr('Vale para o projeto: a próxima sessão nesta sala chega com este personagem.') }),
+      (this.slot3d = h('div', { class: 'ui-char__3d' })),
+      (this.title2d = h('h3', { class: 'ui-char__title2d', hidden: true, text: tr('Aparência 2D (pixel art e Habblaud World)') })),
       this.fields.groups,
       this.error,
       h('div', { class: 'ui-char__actions' }, this.saveBtn, cancel, this.resetBtn),
@@ -104,6 +111,10 @@ export class CharacterEditor {
     setHidden(this.el, false);
     setAttr(this.button, 'aria-expanded', 'true');
     this.fields.set({ ...this.base, ...a.parts });
+    this.look3d?.dispose();
+    this.look3d = this.ctx.world?.lookEditor?.(a.id) ?? null;
+    if (this.look3d) this.slot3d.append(this.look3d.el);
+    setHidden(this.title2d, !this.look3d);
     this.nameInput.focus();
     this.nameInput.select();
   }
@@ -114,6 +125,8 @@ export class CharacterEditor {
     this.editing = false;
     this.busy = false;
     this.saveBtn.disabled = false;
+    this.look3d?.dispose();
+    this.look3d = null;
     setHidden(this.el, true);
     setAttr(this.button, 'aria-expanded', 'false');
   }
@@ -138,6 +151,8 @@ export class CharacterEditor {
     const editId = this.editId;
     this.busy = true;
     this.saveBtn.disabled = true;
+    // a aparência 3D fica no navegador: grava já (não depende da resposta do servidor)
+    this.look3d?.save();
     const err = await this.ctx.store.saveCharacter(id, { name, seed: this.seed, parts: changedParts(this.base, draft) });
     if (!this.editing || this.agentId !== id || this.editId !== editId) return;
     this.busy = false;

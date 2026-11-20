@@ -18,6 +18,9 @@ do meio (0.**3**.0).
   trabalho (código, terminal, documentação, navegador). Câmera com giro, zoom e foco no agente; paredes da frente
   abaixam sozinhas. Em **Configurações › Visual** dá para voltar ao 2D (pixel art) e escolher a qualidade gráfica
   (Baixa, Média, Alta, Ultra). Sem WebGL2, o Habblaud abre no 2D. Detalhes em [docs/3d.md](docs/3d.md).
+- **Editor de personagem 3D.** No lápis do agente, com o escritório em 3D: prévia girável com animação, 12 bonecos
+  para escolher, cores de cabelo, pele, roupa e calçados, acessórios (óculos, boné, gorro, fone, laço) e uma
+  identificação profissional que aparece sob o nome. Fica guardado neste navegador.
 
 ## [1.0.3] - 2026-10-16
 
