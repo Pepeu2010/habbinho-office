@@ -21,10 +21,37 @@ export function start(): void {
   );
 
   const params = new URLSearchParams(location.search);
+  // Escritório 3D (world3d/) ou o 2D original (world/): mesma simulação, mesmo contrato (WorldApi). O 3D é carregado
+  // à parte, só por quem o usa; sem WebGL2 fica o 2D.
+  if (worldView(params) === '3d') {
+    void import('./world3d')
+      .then((m) => boot(params, (canvas, store) => m.createWorld3D(canvas, store)))
+      .catch((err) => {
+        console.error('[mundo 3D] não carregou, voltando ao 2D', err);
+        boot(params, createWorld);
+      });
+  } else boot(params, createWorld);
+}
+
+/** Visão do escritório: `?view=2d|3d` vale e fica guardado; sem WebGL2, sempre 2D. */
+export function worldView(params: URLSearchParams): '2d' | '3d' {
+  const ls = safeLocalStorage();
+  const asked = params.get('view');
+  if (asked === '2d' || asked === '3d') ls?.setItem('habblaud.view', asked);
+  const pref = asked ?? ls?.getItem('habblaud.view') ?? '3d';
+  if (pref !== '3d') return '2d';
+  try {
+    return document.createElement('canvas').getContext('webgl2') ? '3d' : '2d';
+  } catch {
+    return '2d';
+  }
+}
+
+function boot(params: URLSearchParams, makeWorld: (canvas: HTMLCanvasElement, store: OfficeStore) => WorldApi): void {
   const store = new OfficeStore({ mock: params.has('mock') });
   const worldCanvas = document.getElementById('world') as HTMLCanvasElement;
   const uiRoot = document.getElementById('ui') as HTMLElement;
-  const world = createWorld(worldCanvas, store);
+  const world = makeWorld(worldCanvas, store);
   const city = cityHost({ world, worldCanvas, uiRoot, mock: store.mock, params, version: () => store.liveSnapshot?.meta.version ?? '' });
   createUI(uiRoot, store, world, city);
   // O que esta página pode fazer (porta local ou remota com login) chega antes do primeiro snapshot (ou desiste em

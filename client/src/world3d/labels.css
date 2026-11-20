@@ -1,0 +1,78 @@
+/* Etiquetas do escritório 3D: discretas, legíveis sobre qualquer fundo, sem capturar o mouse. */
+.w3d-labels {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+.w3d-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  will-change: transform;
+  /* o ponto ancorado é o centro da base da etiqueta */
+  translate: -50% -100%;
+}
+.w3d-name {
+  font: 600 11px/1 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #f4f1ea;
+  background: rgba(28, 31, 38, 0.72);
+  padding: 3px 7px 4px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.w3d-tag.is-selected .w3d-name {
+  background: #f4f1ea;
+  color: #1e2126;
+}
+.w3d-bubble {
+  max-width: 220px;
+  font: 500 12px/1.3 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1e2126;
+  background: #fbf8f2;
+  border-radius: 10px;
+  padding: 5px 9px 6px;
+  box-shadow: 0 2px 8px rgba(20, 24, 30, 0.22);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.15s;
+  position: relative;
+}
+.w3d-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 1px;
+}
+.w3d-bubble[data-tone='alert'] {
+  background: #ffd9a3;
+  font-weight: 600;
+}
+.w3d-bubble[data-tone='deliver'] {
+  background: #d7f0d2;
+}
+.w3d-bubble[data-tone='say'] {
+  background: #ffffff;
+}
+.w3d-bubble[data-tone='shell'] {
+  background: #e3e8f3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .w3d-bubble {
+    transition: none;
+  }
+}
