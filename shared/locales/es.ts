@@ -3322,4 +3322,14 @@ export const ES: Readonly<Record<string, string>> = {
   // client/src/world/layout/core.ts (biblioteca e sala de reuniões)
   "Biblioteca": "Biblioteca",
   "Sala de reuniões": "Sala de reuniones",
+  "Agente do OpenCode": "Agente de OpenCode",
+  "   OpenCode: {0} sessão(ões) aberta(s) · {1}": "   OpenCode: {0} sesión(es) abierta(s) · {1}",
+  "   OpenCode: {0}.": "   OpenCode: {0}.",
+  "desligado (HABBLAUD_OPENCODE=0)": "desactivado (HABBLAUD_OPENCODE=0)",
+  "nenhum opencode.db em {0} (defina HABBLAUD_OPENCODE_DIR)": "ningún opencode.db en {0} (define HABBLAUD_OPENCODE_DIR)",
+  "precisa do Node 22.13 ou mais novo (node:sqlite)": "necesita Node 22.13 o más reciente (node:sqlite)",
+  "Agente principal (OpenCode)": "Agente principal (OpenCode)",
+  "Subagente (OpenCode)": "Subagente (OpenCode)",
+  "OpenCode: falha ao ler o banco: {0}": "OpenCode: error al leer la base de datos: {0}",
+  "OpenCode: sessão {0}: {1}": "OpenCode: sesión {0}: {1}",
 };
