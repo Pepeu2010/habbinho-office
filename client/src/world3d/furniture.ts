@@ -105,6 +105,7 @@ function monitor(g: THREE.Group, x: number, y: number, z: number, faceSouth: boo
   block(m, 0.03, 0.14, 0.03, PAL.charcoal, 0, 0.01, -0.02, 0.01);
   block(m, 0.62, 0.36, 0.035, PAL.black, 0, 0.12, 0, 0.02);
   const screen = put(m, plane(0.57, 0.31), screenMat('off'), 0, 0.145, 0.0185, { shadow: false });
+  screen.userData.dynamic = true;
   hooks.screen = screen;
   g.add(m);
 }
@@ -496,6 +497,7 @@ const WALL: Partial<Record<FurnitureKind, Builder>> = {
     ring.position.y = 1.55;
     const hand = (len: number, wdt: number) => {
       const p = new THREE.Group();
+      p.userData.dynamic = true;
       p.position.set(0, 1.55, 0.045);
       block(p, wdt, len, 0.008, PAL.charcoal, 0, 0, 0, 0.002);
       g.add(p);
@@ -562,6 +564,7 @@ const WALL: Partial<Record<FurnitureKind, Builder>> = {
     const r = new THREE.Group();
     block(l, 0.66, 1.62, 0.03, door, 0, 0, 0, 0.005);
     block(r, 0.66, 1.62, 0.03, door, 0, 0, 0, 0.005);
+    l.userData.dynamic = r.userData.dynamic = true;
     l.position.set(-0.34, 0.06, 0.05);
     r.position.set(0.34, 0.06, 0.05);
     g.add(l, r);

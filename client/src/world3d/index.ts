@@ -426,6 +426,10 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       const mode = options.daylight ?? (options.dayNight ? 'auto' : 'day');
       const hour = mode === 'day' ? 13 : mode === 'night' ? 22 : clock.getHours() + clock.getMinutes() / 60;
       stage.setTime(hour);
+      // névoa só no horizonte, qualquer que seja o zoom
+      const fog = stage.scene.fog as THREE.Fog;
+      fog.near = cam.state.dist * 1.6 + 30;
+      fog.far = cam.state.dist * 4 + 120;
       building.update(sim, now, stage.camera, cam.state.target, stage.night, realDt);
       // telas das mesas acompanham a atividade de quem está sentado
       for (const ch of sim.chars.values()) {

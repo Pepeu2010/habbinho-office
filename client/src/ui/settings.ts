@@ -10,6 +10,7 @@ import { SoundSettingsGroup } from './settings-sound';
 import type { SoundControl } from './sound';
 import { AboutGroup } from './version';
 import type { WorldThemeLink } from './world/world-dialog';
+import type { GraphicsQuality } from '../world/api';
 import { LOCALE_STORAGE_KEY, LOCALES, normalizeLocale, tr, type Locale } from '../../../shared/i18n';
 
 type LanguageChoice = 'auto' | Locale;
@@ -33,6 +34,18 @@ function pickLanguage(v: LanguageChoice): void {
     return;
   }
   location.reload();
+}
+
+/** Guarda a visão (2D/3D) e recarrega: o mundo é escolhido ao carregar a página (app.ts: worldView). */
+function pickView(v: '3d' | '2d'): void {
+  try {
+    localStorage.setItem('habblaud.view', v);
+  } catch {
+    return;
+  }
+  const url = new URL(location.href);
+  url.searchParams.delete('view');
+  location.replace(url.toString());
 }
 
 type BoolPref = { [K in keyof UiPrefs]: UiPrefs[K] extends boolean ? K : never }[keyof UiPrefs];
@@ -90,6 +103,8 @@ export class SettingsPopover implements UiComponent {
   private daylight: ReturnType<typeof segmented<UiPrefs['daylight']>>;
   private theme: ReturnType<typeof segmented<UiPrefs['theme']>>;
   private language: ReturnType<typeof segmented<LanguageChoice>>;
+  private view: ReturnType<typeof segmented<'3d' | '2d'>>;
+  private quality: ReturnType<typeof segmented<GraphicsQuality>>;
   private soundGroup: SoundSettingsGroup;
   private demoGroup: HTMLElement;
   /** Só na página do celular (porta remota com login): sair deste aparelho. */
@@ -153,6 +168,31 @@ export class SettingsPopover implements UiComponent {
     this.theme.row.append(h('span', { class: 'ui-set__hint', text: tr('Automático: Halloween em outubro e Natal de 1º de novembro a 26 de dezembro; no resto do ano, o visual original. Nenhum: sempre o original.') }));
     this.soundGroup = new SoundSettingsGroup(ctx, sound);
 
+    // Escritório 3D ou o 2D original (mesma simulação): a troca recarrega a página.
+    this.view = segmented<'3d' | '2d'>(
+      tr('Visão do escritório'),
+      [
+        ['3d', tr('3D')],
+        ['2d', tr('2D (pixel art)')],
+      ],
+      (v) => pickView(v),
+    );
+    this.view.row.append(h('span', { class: 'ui-set__hint', text: tr('Os dois mostram os mesmos agentes e a mesma vida social; trocar recarrega a página.') }));
+    this.quality = segmented<GraphicsQuality>(
+      tr('Qualidade gráfica'),
+      [
+        ['low', tr('Baixa')],
+        ['medium', tr('Média')],
+        ['high', tr('Alta')],
+        ['ultra', tr('Ultra')],
+      ],
+      (v) => {
+        ctx.world.setQuality?.(v);
+        this.quality.set(v);
+      },
+    );
+    this.quality.row.append(h('span', { class: 'ui-set__hint', text: tr('Baixa: sem sombras nem oclusão; Ultra: sombras e resolução máximas.') }));
+
     // Nomes dos idiomas sempre na própria língua, para quem não entende o idioma atual achar o seu.
     this.language = segmented<LanguageChoice>(
       tr('Idioma da interface'),
@@ -206,6 +246,7 @@ export class SettingsPopover implements UiComponent {
         this.liveliness.row,
         this.daylight.row,
       ),
+      h('div', { class: 'ui-set-group' }, h('h3', { text: tr('Visual') }), this.view.row, this.quality.row),
       h(
         'div',
         { class: 'ui-set-group' },
@@ -286,6 +327,10 @@ export class SettingsPopover implements UiComponent {
     this.daylight.set(p.daylight);
     this.theme.set(p.theme);
     this.language.set(savedLanguage());
+    this.view.set(this.ctx.world.getQuality ? '3d' : '2d');
+    const q = this.ctx.world.getQuality?.();
+    if (q) this.quality.set(q);
+    setHidden(this.quality.row, !q);
     this.soundGroup.render();
     setHidden(this.demoGroup, this.ctx.store.mock || access().remote);
     setHidden(this.remoteGroup, !access().remote);

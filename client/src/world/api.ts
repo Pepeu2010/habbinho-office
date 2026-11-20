@@ -98,8 +98,14 @@ export interface WorldApi {
    * câmera; ao voltar, a simulação avança o tempo que passou (como com a aba em segundo plano).
    */
   setSuspended?(suspended: boolean): void;
+  /** (Opcional, aditivo) Qualidade gráfica (só o mundo 3D tem; o 2D não implementa). */
+  getQuality?(): GraphicsQuality;
+  setQuality?(q: GraphicsQuality): void;
   destroy(): void;
 }
+
+/** Presets gráficos do mundo 3D. */
+export type GraphicsQuality = 'low' | 'medium' | 'high' | 'ultra';
 
 /** Relógios do timelapse (ver world/playback.ts). */
 export interface WorldPlayback {

@@ -10,6 +10,15 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Escritório 3D.** O escritório ganhou uma visão tridimensional com bonecos chibi animados (pacotes Gobkit, CC0):
+  os mesmos agentes, salas, caminhos e vida social do 2D, desenhados em 3D. Cada personagem senta, digita, conversa,
+  comemora e anda pelo prédio conforme o que o agente está fazendo de verdade, e o monitor da mesa mostra o tipo de
+  trabalho (código, terminal, documentação, navegador). Câmera com giro, zoom e foco no agente; paredes da frente
+  abaixam sozinhas. Em **Configurações › Visual** dá para voltar ao 2D (pixel art) e escolher a qualidade gráfica
+  (Baixa, Média, Alta, Ultra). Sem WebGL2, o Habblaud abre no 2D. Detalhes em [docs/3d.md](docs/3d.md).
+
 ## [1.0.3] - 2026-10-16
 
 ### Corrigido

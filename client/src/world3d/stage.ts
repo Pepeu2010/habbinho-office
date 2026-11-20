@@ -4,8 +4,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import type { GraphicsQuality } from '../world/api';
 
-export type Quality = 'low' | 'medium' | 'high' | 'ultra';
+export type Quality = GraphicsQuality;
 export const QUALITIES: readonly Quality[] = ['low', 'medium', 'high', 'ultra'];
 
 interface QualitySpec {

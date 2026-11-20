@@ -15,7 +15,7 @@ import type { AreaLayout, ExteriorProp, FloorPatch, WallSegment } from '../world
 import type { RoomState } from '../world/sim/room-state';
 import type { Sim } from '../world/sim/sim';
 import { buildFloorFurniture, buildWallItem, signMesh, type FurnitureHooks } from './furniture';
-import { PAL, block, canvasTex, cyl, mat, put, rbox, sphere } from './kit';
+import { PAL, block, canvasTex, cyl, mat, mergeStatic, put, rbox, sphere } from './kit';
 import type { NatureKit } from './assets';
 
 export const WALL_H = 2.05;
@@ -189,6 +189,7 @@ export class Building3D {
     v.group.traverse((o) => {
       // geometrias e materiais vêm do cache do kit (compartilhados): só as placas têm material próprio
       if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.own) ((o as THREE.Mesh).material as THREE.Material).dispose();
+      if (o.userData.merged) (o as THREE.Mesh).geometry.dispose();
     });
   }
 
@@ -244,6 +245,7 @@ export class Building3D {
         if (!name) continue;
         const s = signMesh(name, room?.theme.accent ?? PAL.teal);
         s.userData.own = true;
+        s.userData.dynamic = true;
         s.position.set(px(it.cx), 1.62, px(it.baseY) + 0.03);
         g.add(s);
         continue;
@@ -264,6 +266,7 @@ export class Building3D {
       view.light = l;
     }
     if (shell) for (const p of shell.props) this.buildProp(g, p);
+    mergeStatic(g, (o) => !!o.userData.dynamic);
     return view;
   }
 
@@ -297,6 +300,7 @@ export class Building3D {
       const lintel = wallBox(style, dx1 - dx0, WALL_T, WALL_H - DOOR_H, true);
       lintel.position.set((dx0 + dx1) / 2, DOOR_H, zc);
       const holder = new THREE.Group();
+      holder.userData.dynamic = true;
       holder.add(lintel);
       g.add(holder);
       view.walls.push({ obj: holder, nx: 0, nz, low: false, h: WALL_H });
@@ -313,6 +317,9 @@ export class Building3D {
   }
 
   private buildExterior(cols: number): void {
+    this.exterior.traverse((o) => {
+      if (o.userData.merged) (o as THREE.Mesh).geometry.dispose();
+    });
     this.exterior.clear();
     const ext = layoutExterior(cols);
     const b = ext.bounds;
@@ -336,6 +343,7 @@ export class Building3D {
     const slab = put(this.exterior, rbox(cols * 16 + 0.4, 0.12, CORRIDOR_Y * 2 + 5 + 0.4, 0.04), mat('#d6d0c4', { rough: 0.9 }), cols * 8, -0.11, (CORRIDOR_Y * 2 + 5) / 2);
     slab.castShadow = false;
     for (const p of ext.props) this.buildProp(this.exterior, p);
+    mergeStatic(this.exterior, () => false);
   }
 
   private buildProp(g: THREE.Object3D, p: ExteriorProp): void {
@@ -427,12 +435,14 @@ export class Building3D {
 
 function wallBox(style: WallStyle, w: number, d: number, h: number, noBase = false): THREE.Group {
   const g = new THREE.Group();
+  g.userData.dynamic = true;
   const glass = style.pattern === 'glass';
   const base = glass ? mat(PAL.glass, { opacity: 0.32, rough: 0.08, metal: 0.1 }) : mat(style.exterior ? '#d8d0c3' : style.base, { rough: 0.92 });
   if (glass) {
     block(g, w, 0.3, d, PAL.white, 0, 0, 0, 0.02);
     block(g, w, h - 0.36, d * 0.3, base, 0, 0.3, 0, 0.005);
     block(g, w, 0.06, d, PAL.white, 0, h - 0.06, 0, 0.01);
+    mergeStatic(g, () => false);
     return g;
   }
   block(g, w, h, d, base, 0, 0, 0, 0.02);
@@ -442,6 +452,7 @@ function wallBox(style: WallStyle, w: number, d: number, h: number, noBase = fal
     else if (style.pattern === 'tiles') block(g, w + 0.004, 0.8, d + 0.02, mat('#e6eef2', { rough: 0.35 }), 0, 0, 0, 0.005);
     block(g, w + 0.01, 0.09, d + 0.04, trim, 0, 0, 0, 0.01);
   }
+  mergeStatic(g, () => false);
   return g;
 }
 
@@ -579,6 +590,7 @@ function floorMesh(f: FloorPatch, x0: number, z0: number, x1: number, z1: number
   const mesh = new THREE.Mesh(geo, m);
   mesh.position.set(x0 + w / 2, 0, z0 + h / 2);
   mesh.receiveShadow = true;
+  mesh.userData.ownGeo = true;
   return mesh;
 }
 const floorMats = new Map<string, THREE.MeshStandardMaterial>();

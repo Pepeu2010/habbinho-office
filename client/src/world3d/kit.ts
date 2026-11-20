@@ -3,6 +3,7 @@
 // compartilhados entre todos os móveis (poucas variações, muitas instâncias) para manter as draw calls baixas.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Paleta da direção de arte: madeiras quentes, tons claros, pastéis, verde suave, azul discreto. */
 export const PAL = {
@@ -166,4 +167,50 @@ export function texMat(key: string, w: number, h: number, draw: (ctx: CanvasRend
     texMatCache.set(k, m);
   }
   return m;
+}
+
+/**
+ * Funde as malhas estáticas de um grupo em uma malha por material (menos draw calls: uma sala inteira de móveis
+ * vira poucas chamadas). `keep` marca objetos que mudam depois (telas, portas, ponteiros, paredes com recorte):
+ * eles e os filhos ficam como estão.
+ */
+export function mergeStatic(root: THREE.Object3D, keep: (o: THREE.Object3D) => boolean): void {
+  root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert();
+  const buckets = new Map<string, { material: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>();
+  const remove: THREE.Object3D[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (o !== root && keep(o)) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m as THREE.SkinnedMesh).isSkinnedMesh && !Array.isArray(m.material) && m.visible) {
+      let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+      const key = `${m.material.uuid}|${m.castShadow}`;
+      let b = buckets.get(key);
+      if (!b) buckets.set(key, (b = { material: m.material, cast: m.castShadow, geos: [] }));
+      b.geos.push(g);
+      remove.push(m);
+    }
+    for (const c of [...o.children]) visit(c);
+  };
+  visit(root);
+  if (!remove.length) return;
+  for (const m of remove) {
+    m.parent?.remove(m);
+    // geometria feita só para esta malha (pisos): já foi copiada para a fundida
+    if (m.userData.ownGeo) (m as THREE.Mesh).geometry.dispose();
+  }
+  for (const b of buckets.values()) {
+    const merged = mergeGeometries(b.geos, false);
+    for (const g of b.geos) g.dispose();
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, b.material);
+    mesh.castShadow = b.cast;
+    mesh.receiveShadow = true;
+    mesh.userData.merged = true;
+    root.add(mesh);
+  }
 }
