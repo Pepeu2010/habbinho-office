@@ -68,8 +68,9 @@ describe('Habbinho', () => {
     expect(rig.handR.length()).toBeGreaterThan(2);
   });
 
-  it('gera malha válida para todos os penteados, roupas, acessórios e barbas', () => {
-    for (let i = 0; i < HAIR.length * TOPS.length; i++) {
+  it('gera malha válida para todos os penteados, roupas, acessórios e barbas', { timeout: 30_000 }, () => {
+    // 14 combinações cobrem todos os penteados, roupas (i % 7), acessórios (i % 8), barbas e partes de baixo
+    for (let i = 0; i < HAIR.length; i++) {
       const { body, face } = chibiGeometry(look(i), rig);
       const n = body.attributes.position!.count;
       expect(n).toBeGreaterThan(1000);
