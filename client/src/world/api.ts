@@ -101,6 +101,9 @@ export interface WorldApi {
   /** (Opcional, aditivo) Qualidade gráfica (só o mundo 3D tem; o 2D não implementa). */
   getQuality?(): GraphicsQuality;
   setQuality?(q: GraphicsQuality): void;
+  /** (Opcional, aditivo) Visitantes decorativos (NPCs) do mundo 3D: nunca são agentes nem entram em métricas. */
+  getNpcLevel?(): NpcLevel;
+  setNpcLevel?(l: NpcLevel): void;
   /**
    * (Opcional, aditivo) Editor da aparência própria do mundo (só o 3D tem): a UI monta `el` dentro do editor de
    * personagem e chama save() ao salvar, dispose() ao fechar. null = sem editor para esse agente.
@@ -118,6 +121,9 @@ export interface LookEditorHandle {
   /** Fecha sem gravar e libera a prévia. */
   dispose(): void;
 }
+
+/** Quantos visitantes decorativos (NPCs) circulam no escritório 3D. */
+export type NpcLevel = 'none' | 'few' | 'many';
 
 /** Presets gráficos do mundo 3D. */
 export type GraphicsQuality = 'low' | 'medium' | 'high' | 'ultra';

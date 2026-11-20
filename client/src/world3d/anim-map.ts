@@ -70,3 +70,38 @@ export function resolveClip(choice: ClipChoice, has: (name: string) => boolean):
   for (const c of choice.clips) if (has(c)) return c;
   return 'Idle';
 }
+
+/** Reações do corpo aos ícones que a simulação acende (concluiu, erro, pedido de atenção...). */
+export type Reaction = 'celebrate' | 'oops' | 'attention';
+
+export const REACTION_MS: Readonly<Record<Reaction, number>> = { celebrate: 1600, oops: 1400, attention: 900 };
+
+export function reactionForIcon(icon: string | null | undefined): Reaction | null {
+  switch (icon) {
+    case 'check':
+    case 'star':
+    case 'trophy':
+      return 'celebrate';
+    case 'sweat':
+    case 'storm':
+      return 'oops';
+    case 'alert':
+    case 'question':
+      return 'attention';
+    default:
+      return null;
+  }
+}
+
+/** Clipe da reação para quem está parado em pé (sentado ou andando, a reação é só procedural: cabeça e pulinho). */
+export function reactionClip(r: Reaction, seated: boolean, pose: Pose): string | null {
+  if (seated || pose === 'walk' || pose === 'run') return null;
+  return r === 'celebrate' ? 'Cheer' : r === 'oops' ? 'Shrug' : 'Nod';
+}
+
+/** Emoji de cada ícone da simulação (o 2D desenha em pixel art; o 3D mostra na etiqueta). */
+export const ICON_EMOJI: Readonly<Record<string, string>> = {
+  alert: '❗', question: '❓', zzz: '💤', check: '✅', heart: '❤️', coffee: '☕', music: '🎵', idea: '💡', sweat: '💦',
+  star: '⭐', lightning: '⚡', chat: '💬', box: '📦', wave: '👋', hourglass: '⏳', hourglass_flip: '⌛', cobweb: '🕸️',
+  storm: '⛈️', coin: '🪙', sparkle: '✨', trophy: '🏆', hand_rock: '✊', hand_paper: '✋', hand_scissors: '✌️',
+};

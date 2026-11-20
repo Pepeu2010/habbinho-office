@@ -6,16 +6,21 @@ import { sayIcon, SHELL_BUBBLE_ICON, waitBubbleText } from '../world/render/over
 import type { Character } from '../world/sim/character';
 import { shellBubbleText } from '../world/sim/shell';
 import type { Sim } from '../world/sim/sim';
+import { tr } from '../../../shared/i18n';
+import { ICON_EMOJI } from './anim-map';
 import type { AvatarView } from './characters';
 import './labels.css';
 
 const RECENT_MS = 4000;
+const NPC_LABEL = tr('Visitante');
 
 interface Tag {
   el: HTMLDivElement;
   name: HTMLSpanElement;
   badge: HTMLSpanElement;
   badgeText: string;
+  icon: HTMLSpanElement;
+  iconText: string;
   bubble: HTMLDivElement;
   text: string;
   nameText: string;
@@ -34,8 +39,24 @@ export class Labels {
     parent.appendChild(this.root);
   }
 
-  update(sim: Sim, avatars: (id: string) => AvatarView | undefined, camera: THREE.Camera, w: number, h: number, now: number, opts: WorldOptions, selected: string | null, hovered: string | null): void {
+  /** `npcs`: personagens ambientais (só um rótulo "Visitante", sem balão: não são agentes). */
+  update(sim: Sim, avatars: (id: string) => AvatarView | undefined, camera: THREE.Camera, w: number, h: number, now: number, opts: WorldOptions, selected: string | null, hovered: string | null, npcs: Iterable<AvatarView> = []): void {
     const seen = new Set<string>();
+    const npcIds = new Set<string>();
+    {
+      for (const av of npcs) {
+        npcIds.add(av.id);
+        if (!opts.showNames || !av.visible || !this.place(av, camera, w, h)) continue;
+        seen.add(av.id);
+        const t = this.tags.get(av.id) ?? this.make(av.id);
+        if (t.nameText !== NPC_LABEL) {
+          t.nameText = NPC_LABEL;
+          t.name.textContent = NPC_LABEL;
+          t.el.classList.add('is-npc');
+        }
+        t.el.hidden = false;
+      }
+    }
     for (const ch of sim.chars.values()) {
       const av = avatars(ch.id);
       if (!av || !av.visible) continue;
@@ -61,6 +82,13 @@ export class Labels {
         t.badge.textContent = badge;
       }
       t.badge.hidden = !badge || t.name.hidden;
+      // ícone da simulação (✅ concluiu, 💦 erro, 💤 cochilo...), como no 2D
+      const icon = ch.icon && now < ch.iconUntil ? (ICON_EMOJI[ch.icon] ?? '') : '';
+      if (icon !== t.iconText) {
+        t.iconText = icon;
+        t.icon.textContent = icon;
+        t.icon.hidden = !icon;
+      }
       const text = bubble ? `${bubble.icon} ${bubble.text}` : '';
       if (text !== t.text) {
         t.text = text;
@@ -80,11 +108,24 @@ export class Labels {
     }
     for (const [id, t] of this.tags) {
       if (seen.has(id)) continue;
-      if (!sim.chars.has(id)) {
+      if (!sim.chars.has(id) && !npcIds.has(id)) {
         t.el.remove();
         this.tags.delete(id);
       } else t.el.hidden = true;
     }
+  }
+
+  /** Posiciona uma etiqueta de NPC; false = fora da tela. */
+  private place(av: AvatarView, camera: THREE.Camera, w: number, h: number): boolean {
+    this.v.copy(av.head).project(camera);
+    if (this.v.z > 1 || this.v.z < -1) return false;
+    const x = (this.v.x * 0.5 + 0.5) * w;
+    const y = (-this.v.y * 0.5 + 0.5) * h;
+    if (x < -80 || y < -40 || x > w + 80 || y > h + 40) return false;
+    const t = this.tags.get(av.id) ?? this.make(av.id);
+    t.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    t.el.style.zIndex = String(Math.round((1 - this.v.z) * 10000));
+    return true;
   }
 
   private make(id: string): Tag {
@@ -98,9 +139,12 @@ export class Labels {
     const badge = document.createElement('span');
     badge.className = 'w3d-badge';
     badge.hidden = true;
-    el.append(bubble, name, badge);
+    const icon = document.createElement('span');
+    icon.className = 'w3d-icon';
+    icon.hidden = true;
+    el.append(icon, bubble, name, badge);
     this.root.appendChild(el);
-    const t: Tag = { el, name, badge, badgeText: '', bubble, text: '', nameText: '', tone: '' };
+    const t: Tag = { el, name, badge, badgeText: '', icon, iconText: '', bubble, text: '', nameText: '', tone: '' };
     this.tags.set(id, t);
     return t;
   }

@@ -16,6 +16,8 @@ import { CharacterAssets, NatureKit } from './assets';
 import { Building3D } from './building';
 import { StrategicCamera } from './camera';
 import { Avatars } from './characters';
+import { Fx } from './fx';
+import { NpcCrowd, type NpcLevel } from './npcs';
 import { Labels } from './labels';
 import { LookStore } from './looks';
 import { createLookEditor } from './editor';
@@ -27,6 +29,9 @@ const art: ArtModule = artModule;
 export interface World3DExtras {
   /** Presets gráficos (persistidos no navegador). */
   getQuality(): Quality;
+  /** NPCs ambientais (visitantes decorativos; persistido no navegador). */
+  getNpcLevel(): NpcLevel;
+  setNpcLevel(l: NpcLevel): void;
   setQuality(q: Quality): void;
   /** Aparências 3D (editor de personagens). */
   looks: LookStore;
@@ -34,7 +39,7 @@ export interface World3DExtras {
   /** Números do último quadro, para depuração e benchmark. */
   stats(): { fps: number; calls: number; triangles: number; avatars: number };
   /** Acesso direto para depuração no console (window.habblaud.world.debug). */
-  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
+  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; npcs: () => Avatars; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
 }
 
 export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & World3DExtras {
@@ -47,8 +52,20 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const looks = new LookStore();
   const building = new Building3D(null);
   stage.scene.add(building.root);
-  let avatars = new Avatars(assets, looks);
+  const fx = new Fx();
+  stage.scene.add(fx.mesh);
+  // reações do corpo (concluiu/erro) ganham partículas sobre a cabeça
+  const onReact = (kind: string, head: THREE.Vector3) => {
+    if (kind === 'celebrate') fx.confetti(head);
+    else if (kind === 'oops') fx.puff(head);
+  };
+  let avatars = new Avatars(assets, looks, onReact);
   stage.scene.add(avatars.group);
+  // visitantes decorativos: fora do store, das métricas e da seleção (npcs.ts)
+  let npcLevel = loadNpcLevel();
+  const npcs = new NpcCrowd(() => ({ spots: sim.spots, finder: sim.finder, elevators: sim.elevators }));
+  const npcAvatars = new Avatars(assets, looks);
+  stage.scene.add(npcAvatars.group);
   const labels = new Labels(document.body);
   canvas.after(labels.root);
   void NatureKit.load().then((n) => building.setNature(n));
@@ -419,6 +436,21 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       applyKeys(realDt);
       const sel = selection?.type === 'agent' ? selection.id : null;
       avatars.update(sim, dt, now, sel, hover);
+      // no timelapse não há visitantes: ele mostra só o que aconteceu de verdade
+      if (sim.initialized) npcs.update(dt, now, playback ? 'none' : npcLevel);
+      npcAvatars.update(sim, dt, now, null, null, npcs.list);
+      // efeitos pedidos pela simulação (os mesmos do 2D): consumidos aqui, senão a lista só cresce
+      for (const e of sim.effects) {
+        const from = avatars.get(e.charId);
+        if (!from?.visible || now - e.at > 1500) continue;
+        if (e.kind === 'confetti') fx.confetti(from.head);
+        else if (e.kind === 'sparkle') fx.sparkle(from.head);
+        else if (e.kind === 'coins') {
+          const to = avatars.get(e.toId);
+          if (to?.visible) fx.coins(from.head, to.head);
+        }
+      }
+      sim.effects.length = 0;
       if (follow && !sim.chars.has(follow)) follow = null;
       const fav = follow ? avatars.get(follow) : undefined;
       cam.update(performance.now(), fav ? new THREE.Vector3(fav.root.position.x, 0.5, fav.root.position.z) : null, realDt, viewW, viewH);
@@ -439,8 +471,9 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
         const scr = building.screens.get(spot.deskId);
         if (scr) scr.material = screenModeFor(ch, sim.rooms.get(ch.roomId)?.theme.accent);
       }
+      fx.update(realDt, stage.camera);
       stage.render();
-      labels.update(sim, (id) => avatars.get(id), stage.camera, viewW, viewH, now, options, sel, hover);
+      labels.update(sim, (id) => avatars.get(id), stage.camera, viewW, viewH, now, options, sel, hover, npcAvatars.list.values());
       if (soundCbs.size && !playback) cues.update(now, (c) => soundCbs.forEach((cb) => cb(c)));
       if (mouse && !drag) {
         const hit = pick(mouse.x, mouse.y);
@@ -470,11 +503,12 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   raf = requestAnimationFrame(loop);
 
   const rebuild = () => {
+    npcs.clear();
     sim.social.wallets.save(Date.now());
     sim = new Sim(art, () => options, playback ? null : undefined);
     stage.scene.remove(avatars.group);
     avatars.dispose();
-    avatars = new Avatars(assets, looks);
+    avatars = new Avatars(assets, looks, onReact);
     stage.scene.add(avatars.group);
     building.dispose();
     cues = new SoundCues(sim, soundCam);
@@ -560,7 +594,10 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       offSnapshot();
       labels.destroy();
       avatars.dispose();
+      npcs.clear();
+      npcAvatars.dispose();
       building.dispose();
+      fx.dispose();
       stage.dispose();
       selectCbs.clear();
       hoverCbs.clear();
@@ -570,6 +607,11 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     lookEditor: (id) => {
       const info = sim.chars.get(id)?.info ?? store.snapshot?.agents.find((a) => a.id === id);
       return info ? createLookEditor(info, assets, looks) : null;
+    },
+    getNpcLevel: () => npcLevel,
+    setNpcLevel: (l) => {
+      npcLevel = l;
+      saveNpcLevel(l);
     },
     getQuality: () => stage.quality,
     setQuality: (q) => {
@@ -585,6 +627,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       sim: () => sim,
       building,
       avatars: () => avatars,
+      npcs: () => npcAvatars,
       view: (x, z, dist, pitch, yaw) => {
         userMoved = true;
         framed = true;
@@ -596,4 +639,24 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     },
   };
   return api;
+}
+
+const NPC_KEY = 'habblaud.3d.npcs';
+
+function loadNpcLevel(): NpcLevel {
+  try {
+    const v = localStorage.getItem(NPC_KEY);
+    if (v === 'none' || v === 'few' || v === 'many') return v;
+  } catch {
+    // sem armazenamento
+  }
+  return 'few';
+}
+
+function saveNpcLevel(l: NpcLevel): void {
+  try {
+    localStorage.setItem(NPC_KEY, l);
+  } catch {
+    // sem armazenamento: vale só nesta página
+  }
 }

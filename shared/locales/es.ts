@@ -3381,4 +3381,9 @@ export const ES: Readonly<Record<string, string>> = {
   "o modelo usou ferramentas demais sem responder (limite de {0} rodadas)": "el modelo usó demasiadas herramientas sin responder (límite de {0} rondas)",
   "o modelo {0} não está disponível (o Ollama/LM Studio está rodando?)": "el modelo {0} no está disponible (¿Ollama/LM Studio está en marcha?)",
   "só com acesso local (mesma trava do terminal)": "solo con acceso local (mismo bloqueo que el terminal)",
+  // client/src/world3d/npcs.ts e ui/settings.ts (visitantes decorativos)
+  "Muitos": "Muchos",
+  "Poucos": "Pocos",
+  "Visitantes": "Visitantes",
+  "Personagens decorativos que circulam pelas áreas comuns. Não são agentes: não contam em nada e não podem ser selecionados.": "Personajes decorativos que circulan por las áreas comunes. No son agentes: no cuentan para nada y no se pueden seleccionar.",
 };

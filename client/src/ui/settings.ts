@@ -10,7 +10,7 @@ import { SoundSettingsGroup } from './settings-sound';
 import type { SoundControl } from './sound';
 import { AboutGroup } from './version';
 import type { WorldThemeLink } from './world/world-dialog';
-import type { GraphicsQuality } from '../world/api';
+import type { GraphicsQuality, NpcLevel } from '../world/api';
 import { LOCALE_STORAGE_KEY, LOCALES, normalizeLocale, tr, type Locale } from '../../../shared/i18n';
 
 type LanguageChoice = 'auto' | Locale;
@@ -105,6 +105,7 @@ export class SettingsPopover implements UiComponent {
   private language: ReturnType<typeof segmented<LanguageChoice>>;
   private view: ReturnType<typeof segmented<'3d' | '2d'>>;
   private quality: ReturnType<typeof segmented<GraphicsQuality>>;
+  private npcs: ReturnType<typeof segmented<NpcLevel>>;
   private soundGroup: SoundSettingsGroup;
   private demoGroup: HTMLElement;
   /** Só na página do celular (porta remota com login): sair deste aparelho. */
@@ -192,6 +193,19 @@ export class SettingsPopover implements UiComponent {
       },
     );
     this.quality.row.append(h('span', { class: 'ui-set__hint', text: tr('Baixa: sem sombras nem oclusão; Ultra: sombras e resolução máximas.') }));
+    this.npcs = segmented<NpcLevel>(
+      tr('Visitantes'),
+      [
+        ['none', tr('Nenhum')],
+        ['few', tr('Poucos')],
+        ['many', tr('Muitos')],
+      ],
+      (v) => {
+        ctx.world.setNpcLevel?.(v);
+        this.npcs.set(v);
+      },
+    );
+    this.npcs.row.append(h('span', { class: 'ui-set__hint', text: tr('Personagens decorativos que circulam pelas áreas comuns. Não são agentes: não contam em nada e não podem ser selecionados.') }));
 
     // Nomes dos idiomas sempre na própria língua, para quem não entende o idioma atual achar o seu.
     this.language = segmented<LanguageChoice>(
@@ -246,7 +260,7 @@ export class SettingsPopover implements UiComponent {
         this.liveliness.row,
         this.daylight.row,
       ),
-      h('div', { class: 'ui-set-group' }, h('h3', { text: tr('Visual') }), this.view.row, this.quality.row),
+      h('div', { class: 'ui-set-group' }, h('h3', { text: tr('Visual') }), this.view.row, this.quality.row, this.npcs.row),
       h(
         'div',
         { class: 'ui-set-group' },
@@ -331,6 +345,9 @@ export class SettingsPopover implements UiComponent {
     const q = this.ctx.world.getQuality?.();
     if (q) this.quality.set(q);
     setHidden(this.quality.row, !q);
+    const npc = this.ctx.world.getNpcLevel?.();
+    if (npc) this.npcs.set(npc);
+    setHidden(this.npcs.row, !npc);
     this.soundGroup.render();
     setHidden(this.demoGroup, this.ctx.store.mock || access().remote);
     setHidden(this.remoteGroup, !access().remote);

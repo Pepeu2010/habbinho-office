@@ -25,3 +25,15 @@ describe('clipForPose', () => {
     expect(resolveClip({ clips: ['Nada'], speed: 1, loop: true }, has)).toBe('Idle');
   });
 });
+
+describe('reações', () => {
+  it('ícone da simulação vira reação; sentado ou andando não troca o clipe', async () => {
+    const { reactionForIcon, reactionClip } = await import('./anim-map');
+    expect(reactionForIcon('check')).toBe('celebrate');
+    expect(reactionForIcon('sweat')).toBe('oops');
+    expect(reactionForIcon('coffee')).toBeNull();
+    expect(reactionClip('celebrate', false, 'stand')).toBe('Cheer');
+    expect(reactionClip('celebrate', true, 'type')).toBeNull();
+    expect(reactionClip('oops', false, 'walk')).toBeNull();
+  });
+});

@@ -38,8 +38,16 @@ do meio (0.**3**.0).
   `~/.habblaud/local-agents` e voltam depois de reiniciar. Só com acesso local; `HABBLAUD_LOCAL_AGENTS=0` desliga,
   `HABBLAUD_OLLAMA_URL`/`HABBLAUD_LMSTUDIO_URL` (só endereços deste computador) e `HABBLAUD_LOCAL_CTX` (janela de
   contexto, padrão 8192) ajustam. Agentes locais não sobem para o Habblaud World.
+- **Escritório 3D mais vivo.** Os personagens reagem ao que acontece de verdade: pulinho e confete quando um agente
+  conclui, balançar de cabeça e nuvenzinha num erro, aceno de cabeça quando algo pede atenção; os ícones sobre a cabeça
+  (✅ 💦 💤 ⭐…), as moedinhas das apostas e o brilho do espelho, que já existiam no 2D, agora aparecem no 3D.
+  **Visitantes** (Configurações › Visual: nenhum, poucos ou muitos) chegam pelo elevador, tomam café, leem na
+  biblioteca, descansam no lounge e vão embora. Eles são só decoração: não são agentes, não contam em nenhum número,
+  não podem ser selecionados, não aparecem no timelapse e não sobem para o Habblaud World.
 
 ### Corrigido
+
+- Escritório 3D: etiquetas escondidas (de quem saiu da tela) continuavam paradas na última posição.
 
 - Os cartões de uso da barra não aparecem mais para OpenCode e modelos locais (não há uso a mostrar nem o que ativar),
   e a caixa de mensagem do OpenCode diz o motivo certo em vez de pedir um plugin que não serve para ele.

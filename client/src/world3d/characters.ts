@@ -7,7 +7,7 @@ import { TILE } from '../world/constants';
 import type { Character } from '../world/sim/character';
 import type { Sim } from '../world/sim/sim';
 import type { SpotKind } from '../world/layout/types';
-import { clipForPose, resolveClip } from './anim-map';
+import { REACTION_MS, clipForPose, reactionClip, reactionForIcon, resolveClip, type Reaction } from './anim-map';
 import { BONE, CHAR_H, defaultModelFor, modelById, type CharacterAssets, type CharacterModelDef, type LoadedModel } from './assets';
 import { SEAT_H, STOOL_H } from './furniture';
 import { PAL, cyl, mat, rbox, sphere } from './kit';
@@ -70,6 +70,10 @@ class Avatar implements AvatarView {
   readonly ring: THREE.Mesh;
   private shadowBlob: THREE.Mesh;
   private lookKey = '';
+  private iconAt = 0;
+  private reaction: { kind: Reaction; t0: number } | null = null;
+  /** Chamado quando uma reação começa (efeitos de partícula sobre a cabeça). */
+  onReact?: (kind: Reaction, head: THREE.Vector3) => void;
   private accessory: THREE.Object3D | null = null;
   /** Identificação profissional escolhida no editor (etiqueta). */
   badge = '';
@@ -237,7 +241,18 @@ class Avatar implements AvatarView {
     }
     const variant = hash01(`${this.id}:${this.poseCount}`);
     const choice = clipForPose(ch.pose, ch.seated, ch.held, variant);
-    const name = resolveClip(choice, (n) => this.model!.clips.has(n));
+    // reação a um ícone novo da simulação (concluiu, erro, atenção): só os recentes (não ao carregar a página)
+    if (ch.icon && ch.iconAt !== this.iconAt) {
+      this.iconAt = ch.iconAt;
+      const kind = reactionForIcon(ch.icon);
+      if (kind && now - ch.iconAt < 2_000) {
+        this.reaction = { kind, t0: now };
+        this.onReact?.(kind, this.head);
+      }
+    }
+    if (this.reaction && now - this.reaction.t0 > REACTION_MS[this.reaction.kind]) this.reaction = null;
+    const override = this.reaction ? reactionClip(this.reaction.kind, ch.seated, ch.pose) : null;
+    const name = override && this.model.clips.has(override) ? override : resolveClip(choice, (n) => this.model!.clips.has(n));
     let rate = choice.speed;
     if (name === 'Walk' || name === 'WalkCall') rate = THREE.MathUtils.clamp(speed / WALK_REF, 0.6, 2.4);
     else if (name === 'Run') rate = THREE.MathUtils.clamp(speed / RUN_REF, 0.7, 1.8);
@@ -246,6 +261,13 @@ class Avatar implements AvatarView {
 
     // camadas procedurais sobre o clipe: cochilo (cabeça baixa)
     if (this.headBone && ch.pose === 'sleep') this.headBone.rotateX(0.45);
+    if (this.reaction) {
+      const t = Math.min(1, (now - this.reaction.t0) / REACTION_MS[this.reaction.kind]);
+      const k = 1 - t;
+      if (this.reaction.kind === 'celebrate') this.body.position.y = Math.abs(Math.sin(t * Math.PI * 3)) * 0.09 * k;
+      else if (this.reaction.kind === 'oops' && this.headBone) this.headBone.rotateY(Math.sin(t * Math.PI * 6) * 0.4 * k);
+      else if (this.headBone) this.headBone.rotateX(-Math.sin(t * Math.PI * 2) * 0.3 * k);
+    } else this.body.position.y = 0;
 
     // alpha (chegada/saída)
     const alpha = THREE.MathUtils.clamp(ch.alpha, 0, 1);
@@ -423,20 +445,23 @@ export class Avatars {
   constructor(
     private assets: CharacterAssets,
     private looks: LookStore,
+    private onReact?: (kind: Reaction, head: THREE.Vector3) => void,
   ) {}
 
-  update(sim: Sim, dt: number, now: number, selected: string | null, hovered: string | null): void {
+  /** `chars`: os personagens a desenhar (os da simulação; os NPCs ambientais têm a lista deles). */
+  update(sim: Sim, dt: number, now: number, selected: string | null, hovered: string | null, chars: ReadonlyMap<string, Character> = sim.chars): void {
     for (const [id, a] of this.list) {
-      if (!sim.chars.has(id)) {
+      if (!chars.has(id)) {
         this.group.remove(a.root);
         a.dispose();
         this.list.delete(id);
       }
     }
-    for (const ch of sim.chars.values()) {
+    for (const ch of chars.values()) {
       let a = this.list.get(ch.id);
       if (!a) {
         a = new Avatar(ch.id);
+        a.onReact = this.onReact;
         this.list.set(ch.id, a);
         this.group.add(a.root);
       }
