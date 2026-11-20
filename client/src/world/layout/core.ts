@@ -1,4 +1,4 @@
-// Núcleo do prédio (colunas 0 e 1): recepção com elevadores, banheiros, copa e lounge.
+// Núcleo do prédio (colunas 0 a 2): recepção com elevadores, banheiros, copa, lounge, biblioteca e sala de reuniões.
 import type { WallStyle } from '../../art/api';
 import { COL_W, NORTH_Y, ROOM_H, SOUTH_Y, TILE } from '../constants';
 import { AreaBuilder, SEATED_SORT_BIAS } from './builder';
@@ -8,6 +8,8 @@ export const RECEPTION_ID = 'core:recepcao';
 export const RESTROOM_ID = 'core:banheiros';
 export const CAFE_ID = 'core:copa';
 export const LOUNGE_ID = 'core:lounge';
+export const LIBRARY_ID = 'core:biblioteca';
+export const MEETING_ID = 'core:reunioes';
 
 /** Paredes do núcleo: tons claros e neutros (frios), com acabamentos diferentes por ambiente. */
 export const CORE_WALLS = {
@@ -17,6 +19,8 @@ export const CORE_WALLS = {
   cafeSplash: { base: '#d9dcdf', trim: '#8d969e', pattern: 'marble' } satisfies WallStyle,
   lounge: { base: '#e6e2ea', trim: '#8f8aa3', pattern: 'plain' } satisfies WallStyle,
   glass: { base: '#cfe6f0', trim: '#9fb9c6', pattern: 'glass' } satisfies WallStyle,
+  library: { base: '#efe6d6', trim: '#8a6a4a', pattern: 'wood_panel' } satisfies WallStyle,
+  meeting: { base: '#e4e9ec', trim: '#7d8c96', pattern: 'plain' } satisfies WallStyle,
 };
 
 /** Centros (em tiles locais) dos dois elevadores na face norte da recepção. */
@@ -244,5 +248,100 @@ export function layoutLounge(): AreaLayout {
   // torcida do ping-pong: atrás da mesa, de frente para a câmera
   b.spot('watch', 10, 5, 'down', { group: 'watch:pingpong', dx: 2 });
   b.spot('watch', 12, 5, 'down', { group: 'watch:pingpong', dx: -2 });
+  return b.build();
+}
+
+/**
+ * Biblioteca (coluna 2, norte): estantes na parede norte (ler um livro em pé), poltronas e sofá para descansar,
+ * mesas de estudo e janelas. Aberta para o corredor, como a copa.
+ */
+export function layoutLibrary(): AreaLayout {
+  const b = new AreaBuilder(LIBRARY_ID, 'lounge', { x: COL_W * 2, y: NORTH_Y, w: COL_W, h: ROOM_H });
+  const wall = CORE_WALLS.library;
+  b.floor('wood', 0, 0, 16, 12, 501);
+  b.rug(1.4, 5.2, 6.2, 4.6, '#8a5a44', 502);
+  b.rug(9.4, 5.6, 5.2, 3.6, '#3f6b5a', 503);
+  b.face(0.5, 15, wall);
+  b.cap(0, 0, 0.5, 12, wall);
+  b.cap(15.5, 0, 0.5, 12, wall);
+
+  // estantes encostadas na parede norte; cada uma tem um lugar de leitura em pé na frente
+  for (const lx of [1, 3, 10, 12]) {
+    b.furn('bookshelf', lx, 2, undefined, { order: 0.25 + lx * 0.005 });
+    b.spot('shelf', lx, 3, 'up', { dx: 8, dy: -2 });
+  }
+  b.furn('binder_shelf', 14, 2, undefined, { order: 0.3 });
+  b.furn('plant_small', 5, 2, 'fern', { order: 0.2 });
+  b.wall('clock', 6, undefined, { order: 0.6 });
+  b.wall('window', 8.5, undefined, { order: 0.4 });
+  b.spot('window', 8, 2, 'up', { dx: 8, dy: 1 });
+
+  // cantinho de leitura: sofá de frente para a câmera e poltronas
+  const sofa = b.furn('sofa', 2, 8, 'down', { order: 0.5 });
+  for (let i = 0; i < 3; i++) b.seat('sofa', 'sofa', 2 + i, 8, 'down', 'down', { noFurniture: true, furnitureId: sofa });
+  b.furn('coffee_table', 2, 6, undefined, { dx: TILE / 2, order: 0.45 });
+  b.block(4, 6, 1, 1);
+  b.seat('armchair', 'armchair', 1, 6, 'right', 'right', { order: 0.55 });
+  b.seat('armchair', 'armchair', 5, 6, 'left', 'left', { order: 0.56 });
+  b.furn('floor_lamp', 6, 8, undefined, { order: 0.32 });
+
+  // mesas de estudo (poltronas viradas para a mesa)
+  b.furn('meeting_table', 10, 6, undefined, { order: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    b.seat('armchair', 'cafe_chair', 10 + i, 5, 'down', 'down', { order: 0.55 + i * 0.01 });
+    b.seat('armchair', 'cafe_chair', 10 + i, 8, 'up', 'up', { order: 0.6 + i * 0.01 });
+  }
+  b.furn('floor_lamp', 14, 6, undefined, { order: 0.33 });
+  b.furn('plant_small', 14, 9, 'fern', { order: 0.2 });
+  b.furn('plant_tall', 1, 10, 'monstera', { order: 0.21 });
+
+  for (const lx of [1, 2, 3, 4, 11, 12, 13, 14]) b.furn('glass_partition', lx, 11, 'h', { order: 0.15 });
+  b.walk(1, 2, 14, 10);
+  b.spot('talk', 7, 9, 'right', { group: 'talk:biblioteca', dx: -1 });
+  b.spot('talk', 8, 9, 'left', { group: 'talk:biblioteca', dx: 1 });
+  b.area.shade = undefined;
+  return b.build();
+}
+
+/**
+ * Sala de reuniões (coluna 2, sul): mesa grande com cadeiras, quadro e TV na parede norte, porta para o corredor.
+ * Quem está à toa pode sentar ali e conversar; reuniões de verdade (colaboração entre agentes) usam a mesma sala.
+ */
+export function layoutMeeting(): AreaLayout {
+  const b = new AreaBuilder(MEETING_ID, 'lounge', { x: COL_W * 2, y: SOUTH_Y, w: COL_W, h: ROOM_H });
+  const wall = CORE_WALLS.meeting;
+  b.floor('carpet', 0, 0, 16, 12, 601, '#6f7f8f', '#5d6b78');
+  b.face(0.5, 6.5, wall);
+  b.face(10, 5.5, CORE_WALLS.glass);
+  b.south(0.5, 15, 11, { ...wall, exterior: true });
+  b.cap(0, 0, 0.5, 12, wall);
+  b.cap(15.5, 0, 0.5, 12, wall);
+  b.walk(1, 2, 14, 9);
+  b.walk(7, 0, 3, 2);
+  b.area.door = { x: COL_W * 2 + 7, y: SOUTH_Y, w: 3, h: 2 };
+
+  b.wall('whiteboard', 3.5, undefined, { order: 0.4 });
+  b.spot('whiteboard', 3, 3, 'up', { dx: 8 });
+  b.wall('tv', 12.5, undefined, { order: 0.45 });
+  b.wall('clock', 6.5, undefined, { order: 0.5 });
+
+  // mesa comprida (duas mesas de 3x2) com cadeiras dos dois lados e nas cabeceiras
+  b.rug(2.6, 4.2, 10.8, 4.6, '#c9bfae', 602);
+  b.furn('meeting_table', 5, 5, undefined, { order: 0.5 });
+  b.furn('meeting_table', 8, 5, undefined, { order: 0.51 });
+  for (let i = 0; i < 6; i++) {
+    b.seat('armchair', 'office_chair_front', 5 + i, 4, 'down', 'gray', { order: 0.55 + i * 0.01 });
+    b.seat('armchair', 'office_chair', 5 + i, 7, 'up', 'gray', { order: 0.62 + i * 0.01 });
+  }
+  b.seat('armchair', 'cafe_chair', 4, 5, 'right', 'right', { order: 0.7 });
+  b.seat('armchair', 'cafe_chair', 11, 5, 'left', 'left', { order: 0.71 });
+
+  b.furn('plant_tall', 1, 2, 'palm', { order: 0.2 });
+  b.furn('plant_tall', 14, 9, 'monstera', { order: 0.21 });
+  b.furn('water_cooler', 1, 9, undefined, { order: 0.3 });
+  b.spot('water', 1, 10, 'up', { dy: -3 });
+  b.furn('printer', 14, 2, undefined, { order: 0.3 });
+  b.spot('talk', 12, 9, 'right', { group: 'talk:reunioes', dx: -1 });
+  b.spot('talk', 13, 9, 'left', { group: 'talk:reunioes', dx: 1 });
   return b.build();
 }

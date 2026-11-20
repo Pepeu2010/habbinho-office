@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { FURNITURE, type FloorKind, type RoomTheme, type WallStyle } from '../art/api';
 import { tr } from '../../../shared/i18n';
-import { COL_W, CORE_COLS, CORRIDOR_Y, SOUTH_Y, TILE } from '../world/constants';
+import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y, SOUTH_Y, TILE } from '../world/constants';
 import { layoutExterior, slotShell, type SlotShell } from '../world/layout/exterior';
 import { slotAt } from '../world/layout/geometry';
 import type { AreaLayout, ExteriorProp, FloorPatch, WallSegment } from '../world/layout/types';
@@ -28,6 +28,8 @@ const CORE_NAMES: Readonly<Record<string, string>> = {
   'core:banheiros': tr('Banheiros'),
   'core:copa': tr('Copa'),
   'core:lounge': tr('Lounge'),
+  'core:biblioteca': tr('Biblioteca'),
+  'core:reunioes': tr('Sala de reuniões'),
 };
 
 /** Parede com recorte: abaixa quando fica entre a câmera e a sala. */
@@ -343,7 +345,32 @@ export class Building3D {
     const slab = put(this.exterior, rbox(cols * 16 + 0.4, 0.12, CORRIDOR_Y * 2 + 5 + 0.4, 0.04), mat('#d6d0c4', { rough: 0.9 }), cols * 8, -0.11, (CORRIDOR_Y * 2 + 5) / 2);
     slab.castShadow = false;
     for (const p of ext.props) this.buildProp(this.exterior, p);
+    this.scatterGrass(cols, b);
     mergeStatic(this.exterior, () => false);
+  }
+
+  /** Tufos de grama e juncos no gramado (fora do prédio, da calçada e da rua), sempre no mesmo lugar. */
+  private scatterGrass(cols: number, b: { x: number; y: number; w: number; h: number }): void {
+    const n = this.nature;
+    if (!n) return;
+    const rnd = mulberry(0x9a55 + cols);
+    const w = cols * COL_W;
+    const south = BUILDING_H;
+    const count = Math.round((b.w * b.h) / 9);
+    for (let i = 0; i < count; i++) {
+      const x = b.x + rnd() * b.w;
+      const z = b.y + rnd() * b.h;
+      if (x > -4 && x < w + 1 && z > -1.5 && z < south + 2.2) continue; // prédio e entrada
+      if (z > south + 1.8 && z < south + 11.3) continue; // calçadas e rua
+      const src = n.pick(rnd() < 0.85 ? 'Grass' : 'Reed', Math.floor(rnd() * 1e6));
+      if (!src) return;
+      const t = src.clone();
+      t.position.set(x, 0, z);
+      t.rotation.y = rnd() * Math.PI * 2;
+      t.scale.setScalar(0.28 + rnd() * 0.25);
+      t.traverse((o) => (o.castShadow = false));
+      this.exterior.add(t);
+    }
   }
 
   private buildProp(g: THREE.Object3D, p: ExteriorProp): void {

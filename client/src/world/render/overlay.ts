@@ -51,6 +51,8 @@ const CORE_NAMES: Record<string, string> = {
   'core:banheiros': tr('Banheiros'),
   'core:copa': tr('Copa'),
   'core:lounge': tr('Lounge'),
+  'core:biblioteca': tr('Biblioteca'),
+  'core:reunioes': tr('Sala de reuniões'),
 };
 
 /** 'shell' = espera de shell: balão escuro de terminal com texto verde. 'say' = fala das rodas (papo, torcida, apostas). */

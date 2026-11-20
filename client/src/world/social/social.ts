@@ -8,7 +8,7 @@ import type { Dir, HeldItem, Pose } from '../../art/api';
 import type { AgentSocial, SocialEvent } from '../api';
 import { mulberry32 } from '../../../../shared/hash';
 import { TILE } from '../constants';
-import { CAFE_ID, LOUNGE_ID, RECEPTION_ID, RESTROOM_ID } from '../layout/core';
+import { CAFE_ID, LIBRARY_ID, LOUNGE_ID, MEETING_ID, RECEPTION_ID, RESTROOM_ID } from '../layout/core';
 import type { SpotDef } from '../layout/types';
 import { FREE } from '../path/grid';
 import { facing, type Character } from '../sim/character';
@@ -62,7 +62,7 @@ const COIN_COLOR = '#ffd34d';
 const LOSS_COLOR = '#ff8a8a';
 
 const KIND_LIST = Object.keys(KINDS) as GatherKind[];
-const PLACES: Readonly<Record<string, string>> = { [LOUNGE_ID]: tr('Lounge'), [CAFE_ID]: tr('Copa'), [RECEPTION_ID]: tr('Recepção'), [RESTROOM_ID]: tr('Banheiros') };
+const PLACES: Readonly<Record<string, string>> = { [LOUNGE_ID]: tr('Lounge'), [CAFE_ID]: tr('Copa'), [RECEPTION_ID]: tr('Recepção'), [RESTROOM_ID]: tr('Banheiros'), [LIBRARY_ID]: tr('Biblioteca'), [MEETING_ID]: tr('Sala de reuniões') };
 /** O que se perde/ganha em cada jogo (texto do extrato: "Perdeu no jokenpô para Rafaela"). */
 const MATCH_WHAT: Partial<Record<GatherKind, string>> = {
   rps: tr('no jokenpô'),

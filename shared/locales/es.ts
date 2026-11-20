@@ -3319,4 +3319,7 @@ export const ES: Readonly<Record<string, string>> = {
   "Ex.: Revisora de código": "Ej.: Revisora de código",
   "Restaurar padrão 3D": "Restaurar 3D predeterminado",
   "Aparência 2D (pixel art e Habblaud World)": "Apariencia 2D (pixel art y Habblaud World)",
+  // client/src/world/layout/core.ts (biblioteca e sala de reuniões)
+  "Biblioteca": "Biblioteca",
+  "Sala de reuniões": "Sala de reuniones",
 };
