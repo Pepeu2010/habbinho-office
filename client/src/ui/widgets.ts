@@ -26,6 +26,30 @@ export function updateAccountChip(chip: HTMLElement, account: AccountInfo | unde
   setAttr(chip, 'aria-label', label);
 }
 
+/**
+ * Ícone da ferramenta (desenho próprio, em SVG): Claude = estrela de raios arredondados; Codex = roseta de três elos;
+ * OpenCode = colchetes; modelo local = chip. Cor: `currentColor`.
+ */
+export function providerGlyph(p: Provider): string {
+  const svg = (body: string) => `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  if (p === 'claude') {
+    let rays = '';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + 0.13;
+      const r1 = i % 2 ? 7.2 : 9.6;
+      rays += `<line x1="${(12 + Math.cos(a) * 2.2).toFixed(2)}" y1="${(12 + Math.sin(a) * 2.2).toFixed(2)}" x2="${(12 + Math.cos(a) * r1).toFixed(2)}" y2="${(12 + Math.sin(a) * r1).toFixed(2)}"/>`;
+    }
+    return svg(`<g stroke-width="2.3">${rays}</g>`);
+  }
+  if (p === 'codex') {
+    let links = '';
+    for (const deg of [0, 60, 120]) links += `<rect x="5" y="9" width="14" height="6" rx="3" transform="rotate(${deg} 12 12)"/>`;
+    return svg(`<g stroke-width="1.8">${links}</g>`);
+  }
+  if (p === 'opencode') return svg('<path stroke-width="2.2" d="M8 5H5v14h3M16 5h3v14h-3"/>');
+  return svg('<rect x="6" y="6" width="12" height="12" rx="3" stroke-width="2"/><path stroke-width="1.8" d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>');
+}
+
 /** Selo de texto "Codex" ao lado do nome da conta (onde há espaço: gaveta, terminal, cartão de uso, dica). */
 export function createProviderTag(extra = ''): HTMLElement {
   return h('span', { class: `ui-prov${extra ? ` ${extra}` : ''}`, text: 'Codex', hidden: true, title: tr('Agente do Codex (OpenAI)') });

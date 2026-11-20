@@ -14,7 +14,7 @@ import { FIVE_HOURS_MS, relativeTime, usageLevel, usageWindowView, WEEK_MS, type
 import { ICONS } from './icons';
 import { isCodex } from './provider';
 import { usageRowFits } from './usage-row';
-import { createAccountChip, createProviderTag, updateAccountChip, updateProviderTag } from './widgets';
+import { createAccountChip, createProviderTag, providerGlyph, updateAccountChip, updateProviderTag } from './widgets';
 import { tr } from '../../../shared/i18n';
 
 export const SOURCE_LABEL: Record<NonNullable<AccountInfo['usage']>['source'], string> = {
@@ -61,6 +61,7 @@ interface Meter {
 
 interface CardRefs {
   chip: HTMLElement;
+  logo: HTMLElement;
   flag: HTMLElement;
   name: HTMLElement;
   prov: HTMLElement;
@@ -266,7 +267,10 @@ export class UsageCards {
 
   private createCard(): HTMLElement {
     const tipId = `ui-usage-tip-${++tipSeq}`;
-    const chip = createAccountChip('lg');
+    const chip = createAccountChip('sm');
+    // ícone da ferramenta (Claude/Codex) na cor da conta, com a letra da conta num selinho
+    const logo = h('span', { class: 'ui-usage-card__logo', attrs: { 'aria-hidden': 'true' } });
+    const logoWrap = h('span', { class: 'ui-usage-card__badge' }, logo, chip);
     const flag = h('span', { class: 'ui-usage-card__flag', hidden: true, attrs: { 'aria-hidden': 'true' } });
     flag.innerHTML = ICONS.clock;
     const name = h('span', { class: 'ui-usage-card__name' });
@@ -303,13 +307,14 @@ export class UsageCards {
     const card = h(
       'div',
       { class: 'ui-usage-card', tabIndex: 0, attrs: { 'aria-describedby': tipId } },
-      chip,
+      logoWrap,
       flag,
       h('div', { class: 'ui-usage-card__body' }, h('div', { class: 'ui-usage-card__head' }, name, prov, email, state), meters, msg),
       tip,
     );
     this.refs.set(card, {
       chip,
+      logo,
       flag,
       name,
       prov,
@@ -339,6 +344,11 @@ export class UsageCards {
     const now = this.ctx.now();
     const codex = isCodex(a);
     updateAccountChip(r.chip, a);
+    const glyph = codex ? 'codex' : 'claude';
+    if (r.logo.dataset.p !== glyph) {
+      r.logo.dataset.p = glyph;
+      r.logo.innerHTML = providerGlyph(glyph);
+    }
     setStyleVar(card, '--acc', a.color);
     setText(r.name, a.name);
     updateProviderTag(r.prov, codex ? 'codex' : 'claude', a.name);

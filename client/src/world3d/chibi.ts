@@ -34,9 +34,17 @@ export interface ChibiRig {
 /** Quanto o braço do Habbinho fica abaixo do osso (rad): os clipes foram feitos para um corpo largo. */
 const ARM_DROP = 0.5;
 
+/** Fração do comprimento do osso onde fica a mão visível: braço curtinho, de boneco (o osso é longo). */
+const ARM_LEN = 0.84;
+
 /** Gira um ponto do braço para baixo em torno do ombro. */
 function dropArm(p: THREE.Vector3, shoulder: THREE.Vector3, dir: number): THREE.Vector3 {
   return p.clone().sub(shoulder).applyAxisAngle(new THREE.Vector3(0, 0, 1), -dir * ARM_DROP).add(shoulder);
+}
+
+/** Mão visível em repouso: no braço encurtado e abaixado. */
+function visHand(arm: THREE.Vector3, hand: THREE.Vector3): THREE.Vector3 {
+  return dropArm(arm.clone().lerp(hand, ARM_LEN), arm, Math.sign(hand.x - arm.x) || 1);
 }
 
 /** Proporções da cabeça (achatada e um pouco mais larga: chibi). */
@@ -52,7 +60,7 @@ export function measureRig(scene: THREE.Object3D, bones: string[]): ChibiRig {
   const headR = 2.05 * u;
   const headC = new THREE.Vector3(j.hips.x, j.head.y + 0.32 * u, j.head.z + 0.05 * u);
   const ground = (j.footL.y + j.footR.y) / 2 - 1.09 * u;
-  const vis = (arm: THREE.Vector3, hand: THREE.Vector3, bone: number) => dropArm(hand, arm, Math.sign(hand.x - arm.x) || 1).applyMatrix4(inverses[bone]!);
+  const vis = (arm: THREE.Vector3, hand: THREE.Vector3, bone: number) => visHand(arm, hand).applyMatrix4(inverses[bone]!);
   return { j, u, inverses, height: headC.y + headR * HEAD_S.y - ground, headC, headR, handL: vis(j.armL, j.handL, BONE.armL), handR: vis(j.armR, j.handR, BONE.armR) };
 }
 
@@ -64,6 +72,9 @@ type ColorFn = THREE.ColorRepresentation | ((p: THREE.Vector3) => THREE.ColorRep
 class Parts {
   readonly list: THREE.BufferGeometry[] = [];
   private c = new THREE.Color();
+
+  /** Luz "pintada" por altura: oclusão suave embaixo, topo um pouco mais claro. */
+  constructor(private readonly ground: number, private readonly top: number) {}
 
   add(geo: THREE.BufferGeometry, color: ColorFn, m: THREE.Matrix4 | null, weight: Weight | ((p: THREE.Vector3) => Weight)): void {
     const g = geo;
@@ -79,6 +90,8 @@ class Parts {
     for (let i = 0; i < n; i++) {
       p.fromBufferAttribute(pos, i);
       this.c.set(typeof color === 'function' ? color(p) : color);
+      const h = THREE.MathUtils.clamp((p.y - this.ground) / (this.top - this.ground), 0, 1);
+      this.c.multiplyScalar(0.8 + 0.28 * Math.sqrt(h));
       col.set([this.c.r, this.c.g, this.c.b], i * 3);
       const [a, b, t] = typeof weight === 'function' ? weight(p) : weight;
       si[i * 4] = a;
@@ -176,12 +189,12 @@ export function chibiGeometry(a: Appearance, rig: ChibiRig): ChibiGeometry {
 }
 
 function buildBody(a: Appearance, rig: ChibiRig): THREE.BufferGeometry {
-  const P = new Parts();
   const { j, u } = rig;
   const H = j.hips.y;
   const cx = j.hips.x;
   const cz = j.hips.z;
   const ground = (j.footL.y + j.footR.y) / 2 - 1.09 * u;
+  const P = new Parts(ground, ground + rig.height);
   const skin = a.skin;
   const top = a.top;
   const accent = a.topAccent;
@@ -189,15 +202,17 @@ function buildBody(a: Appearance, rig: ChibiRig): THREE.BufferGeometry {
   const bottomStyle = a.bottomStyle ?? 'pants';
 
   // ---------------------------------------------------------------- tronco (torno), quadril → peito
+  // quadril desce até o meio da coxa: perninhas curtas de boneco
   const prof: [number, number][] = [
-    [0.0, -0.75],
-    [1.2, -0.7],
+    [0.0, -1.15],
+    [0.9, -1.1],
+    [1.3, -0.75],
     [1.42, -0.2],
-    [1.46, 0.4],
-    [1.4, 1.0],
-    [1.28, 1.55],
-    [0.95, 1.95],
-    [0.5, 2.12],
+    [1.48, 0.35],
+    [1.5, 0.95],
+    [1.38, 1.5],
+    [1.05, 1.9],
+    [0.55, 2.1],
     [0.0, 2.14],
   ];
   const torsoR = (y: number) => {
@@ -216,7 +231,7 @@ function buildBody(a: Appearance, rig: ChibiRig): THREE.BufferGeometry {
   const frontZ = (y: number) => cz + torsoR(y);
 
   // cós da calça
-  P.add(new THREE.TorusGeometry(1.44 * u, 0.09 * u, 6, 28), shade(bottom, 0.8), M(v3(cx, waist, cz), new THREE.Euler(Math.PI / 2, 0, 0)), [BONE.hips, BONE.hips, 0]);
+  P.add(new THREE.TorusGeometry(torsoR(waist), 0.06 * u, 6, 28), shade(bottom, 0.88), M(v3(cx, waist, cz), new THREE.Euler(Math.PI / 2, 0, 0)), [BONE.hips, BONE.hips, 0]);
 
   // ---------------------------------------------------------------- roupa: detalhes por estilo
   const chestW: Weight = [BONE.chest, BONE.chest, 0];
@@ -285,21 +300,21 @@ function buildBody(a: Appearance, rig: ChibiRig): THREE.BufferGeometry {
   ] as const) {
     const dir = Math.sign(hand.x - arm.x) || 1;
     const sh = v3(arm.x - dir * 0.25 * u, arm.y, arm.z);
-    const wrist = dropArm(v3(hand.x - dir * 0.45 * u, hand.y, hand.z), arm, dir);
+    hand = visHand(arm, hand);
+    const wrist = hand.clone().lerp(sh, (0.42 * u) / hand.distanceTo(sh));
     const w: Weight = [bA, bA, 0];
     void bH;
-    hand = dropArm(hand, arm, dir);
     P.add(new THREE.SphereGeometry(0.62 * u, 14, 10), top, M(v3(sh.x, sh.y - 0.05 * u, sh.z)), (p) => [BONE.chest, bA, THREE.MathUtils.clamp(((p.x - sh.x) * dir) / (0.6 * u) + 0.5, 0, 1)]);
     if (longSleeve) {
-      capsule(P, sh, wrist, 0.44 * u, top, w);
-      P.add(new THREE.TorusGeometry(0.43 * u, 0.09 * u, 6, 16), shade(top, 0.8), M(wrist, new THREE.Euler(0, Math.PI / 2, 0)), w);
+      capsule(P, sh, wrist, 0.52 * u, top, w);
+      P.add(new THREE.TorusGeometry(0.5 * u, 0.1 * u, 6, 16), shade(top, 0.85), M(wrist, along(sh, wrist).q), w);
     } else {
       const elbow = sh.clone().lerp(wrist, 0.45);
-      capsule(P, sh, elbow, 0.48 * u, top, w);
-      capsule(P, elbow, wrist, 0.36 * u, skin, w);
+      capsule(P, sh, elbow, 0.56 * u, top, w);
+      capsule(P, elbow, wrist, 0.44 * u, skin, w);
     }
     // mão: palma e polegar
-    P.add(new THREE.SphereGeometry(0.5 * u, 14, 10), skin, M(hand, undefined, v3(1, 0.9, 1.05)), w);
+    P.add(new THREE.SphereGeometry(0.56 * u, 14, 10), skin, M(hand, undefined, v3(1, 0.92, 1.05)), w);
     P.add(new THREE.SphereGeometry(0.2 * u, 8, 6), skin, M(v3(hand.x - dir * 0.15 * u, hand.y + 0.05 * u, hand.z + 0.42 * u)), w);
   }
 
@@ -308,23 +323,24 @@ function buildBody(a: Appearance, rig: ChibiRig): THREE.BufferGeometry {
     [j.legL, j.footL, BONE.legL, BONE.footL],
     [j.legR, j.footR, BONE.legR, BONE.footR],
   ] as const) {
-    const hip = v3(leg.x * 0.92 + cx * 0.08, H - 0.15 * u, leg.z);
-    const ankle = v3(foot.x, ground + 0.75 * u, foot.z);
+    const hip = v3(leg.x * 0.72 + cx * 0.28, H - 0.5 * u, leg.z);
+    const ankle = v3(foot.x * 0.85 + cx * 0.15, ground + 0.75 * u, foot.z);
     const w: Weight = [bL, bL, 0];
     if (bottomStyle === 'shorts') {
       const knee = hip.clone().lerp(ankle, 0.5);
-      capsule(P, hip, knee, 0.6 * u, bottom, w);
-      capsule(P, knee, ankle, 0.44 * u, skin, w);
+      capsule(P, hip, knee, 0.7 * u, bottom, w);
+      capsule(P, knee, ankle, 0.5 * u, skin, w);
     } else if (bottomStyle === 'skirt') {
-      capsule(P, hip, ankle, 0.44 * u, skin, w);
-    } else capsule(P, hip, ankle, 0.55 * u, bottom, w);
+      capsule(P, hip, ankle, 0.5 * u, skin, w);
+    } else capsule(P, hip, ankle, 0.64 * u, bottom, w);
     // tênis: cabedal + sola clara
     const fw: Weight = [bF, bF, 0];
-    P.add(new RoundedBoxGeometry(1.1 * u, 0.8 * u, 1.75 * u, 2, 0.34 * u), a.shoes, M(v3(foot.x, ground + 0.55 * u, foot.z + 0.28 * u)), fw);
-    P.add(new RoundedBoxGeometry(1.18 * u, 0.26 * u, 1.85 * u, 2, 0.1 * u), mix(a.shoes, '#f5f2ea', 0.75), M(v3(foot.x, ground + 0.13 * u, foot.z + 0.3 * u)), fw);
+    const fx = ankle.x;
+    P.add(new RoundedBoxGeometry(1.15 * u, 0.85 * u, 1.75 * u, 3, 0.4 * u), a.shoes, M(v3(fx, ground + 0.55 * u, foot.z + 0.28 * u)), fw);
+    P.add(new RoundedBoxGeometry(1.2 * u, 0.24 * u, 1.82 * u, 2, 0.11 * u), mix(a.shoes, '#f5f2ea', 0.75), M(v3(fx, ground + 0.12 * u, foot.z + 0.3 * u)), fw);
   }
   if (bottomStyle === 'skirt') {
-    const sk = new THREE.LatheGeometry([new THREE.Vector2(1.46 * u, 0.25 * u), new THREE.Vector2(1.62 * u, -0.4 * u), new THREE.Vector2(1.95 * u, -1.25 * u), new THREE.Vector2(1.6 * u, -1.3 * u)], 28);
+    const sk = new THREE.LatheGeometry([new THREE.Vector2(1.46 * u, 0.25 * u), new THREE.Vector2(1.62 * u, -0.4 * u), new THREE.Vector2(1.9 * u, -1.3 * u)], 28);
     P.add(sk, bottom, M(v3(cx, H, cz)), [BONE.hips, BONE.hips, 0]);
   }
 
@@ -412,11 +428,17 @@ function hair(a: Appearance, add: HeadAdd): void {
       return;
     }
     case 'afro': {
-      const off = M(v3(0, 0.16, -0.12));
-      const g1 = shell(1.4, 0, 1.4);
-      const g2 = shell(1.4, 1.36, 2.1, 1.2);
-      add(g1, c, off);
-      add(g2, c, off.clone());
+      add(shell(1.3, 0, 1.38), c, M(v3(0, 0.12, -0.1)));
+      add(shell(1.3, 1.34, 2.05, 1.25), c, M(v3(0, 0.12, -0.1)));
+      for (const th of [0.35, 0.75, 1.1, 1.45, 1.8]) {
+        const n = Math.round(5 + Math.sin(th) * 9);
+        for (let i = 0; i < n; i++) {
+          const phi = (i / n) * Math.PI * 2 + th * 1.7;
+          const front = Math.abs(Math.atan2(Math.sin(phi - FRONT), Math.cos(phi - FRONT))) < 1.15;
+          if (front && th > 1.0) continue;
+          blob(add, c, sph(th, phi, 1.3).add(v3(0, 0.12, -0.1)), 0.34);
+        }
+      }
       return;
     }
     case 'bob':
@@ -505,8 +527,8 @@ function accessory(a: Appearance, add: HeadAdd): void {
       for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.3, 0.3, 0.18, 20), c, M(v3(s * 1.06, -0.02, -0.05), new THREE.Euler(0, 0, Math.PI / 2)));
       return;
     case 'cap':
-      add(shell(1.12, 0, 1.18), c);
-      add(new THREE.CylinderGeometry(0.95, 0.95, 0.05, 24, 1, false, -1.1, 2.2), shade(c, 0.85), M(v3(0, 0.4, 0.42), undefined, v3(0.85, 1, 1)));
+      add(shell(1.1, 0, 1.2), c);
+      add(new THREE.CylinderGeometry(0.7, 0.7, 0.06, 24, 1, false, -1.25, 2.5), shade(c, 0.85), M(v3(0, 0.38, 0.55), new THREE.Euler(0.12, 0, 0), v3(1, 1, 1)));
       blob(add, shade(c, 0.85), v3(0, 1.12, 0), 0.08);
       return;
     case 'beanie':
@@ -546,11 +568,13 @@ export type Expression = (typeof EXPRESSIONS)[number];
 
 const CW = 300;
 const CH = 200;
-let faceAtlas: THREE.CanvasTexture | null = null;
+const atlases = new Map<string, THREE.CanvasTexture>();
 
-/** Atlas 4x2 das expressões (compartilhado; cada boneco usa uma cópia com o próprio deslocamento). */
-function atlas(): THREE.CanvasTexture {
-  if (faceAtlas) return faceAtlas;
+/** Atlas 4x2 das expressões, por cor de olho e cílios (poucos: compartilhado entre bonecos iguais). */
+function atlas(eyes = '#5a3b2e', lashes = false): THREE.CanvasTexture {
+  const key = `${eyes}|${lashes ? 1 : 0}`;
+  let t = atlases.get(key);
+  if (t) return t;
   const cv = document.createElement('canvas');
   cv.width = CW * 4;
   cv.height = CH * 2;
@@ -558,128 +582,163 @@ function atlas(): THREE.CanvasTexture {
   EXPRESSIONS.forEach((e, i) => {
     c.save();
     c.translate((i % 4) * CW, Math.floor(i / 4) * CH);
-    drawFace(c, e);
+    drawFace(c, e, eyes, lashes);
     c.restore();
   });
-  faceAtlas = new THREE.CanvasTexture(cv);
-  faceAtlas.colorSpace = THREE.SRGBColorSpace;
-  faceAtlas.anisotropy = 4;
-  return faceAtlas;
+  t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  atlases.set(key, t);
+  return t;
 }
 
-function drawFace(c: CanvasRenderingContext2D, e: Expression): void {
-  const ink = '#2a2130';
-  const eyeY = 104;
-  const ex = [150 - 64, 150 + 64];
-  const mouthY = 150;
+/**
+ * Um rosto (célula de 300x200 da calota; o centro da cabeça fica em y≈100). Olhos grandes, baixos e afastados,
+ * íris na cor do agente com dois brilhos, bochechas rosadas e boquinha pequena: o desenho "fofo" clássico.
+ */
+function drawFace(c: CanvasRenderingContext2D, e: Expression, eyes: string, lashes: boolean): void {
+  const ink = '#241c2b';
+  const eyeY = 112;
+  const ex = [150 - 60, 150 + 60];
+  const mouthY = 156;
   c.lineCap = 'round';
   c.lineJoin = 'round';
   // bochechas
-  c.fillStyle = 'rgba(255,120,130,0.32)';
-  for (const x of [150 - 98, 150 + 98]) {
+  const blush = (x: number) => {
+    const g = c.createRadialGradient(x, 140, 2, x, 140, 26);
+    g.addColorStop(0, 'rgba(255,110,130,0.55)');
+    g.addColorStop(1, 'rgba(255,110,130,0)');
+    c.fillStyle = g;
     c.beginPath();
-    c.ellipse(x, 134, 20, 11, 0, 0, Math.PI * 2);
+    c.ellipse(x, 140, 28, 17, 0, 0, Math.PI * 2);
     c.fill();
-  }
-  // sobrancelhas
-  c.strokeStyle = 'rgba(60,42,40,0.85)';
-  c.lineWidth = 6;
+  };
+  blush(150 - 96);
+  blush(150 + 96);
+  // sobrancelhas (finas, altas)
+  c.strokeStyle = 'rgba(58,40,38,0.7)';
+  c.lineWidth = 5;
   for (const [k, x] of ex.entries()) {
     const s = k === 0 ? -1 : 1;
     c.beginPath();
     if (e === 'worried') {
-      c.moveTo(x - 16 * s, 66);
-      c.lineTo(x + 14 * s, 76);
+      c.moveTo(x - 15 * s, 68);
+      c.lineTo(x + 13 * s, 78);
     } else if (e === 'focused') {
-      c.moveTo(x - 16 * s, 76);
-      c.lineTo(x + 14 * s, 70);
-    } else if (e === 'surprised') {
-      c.arc(x, 74, 18, Math.PI * 1.15, Math.PI * 1.85);
-    } else {
-      c.arc(x, 80, 18, Math.PI * 1.2, Math.PI * 1.8);
-    }
+      c.moveTo(x - 15 * s, 78);
+      c.lineTo(x + 13 * s, 73);
+    } else c.arc(x, e === 'surprised' ? 80 : 86, 16, Math.PI * 1.22, Math.PI * 1.78);
     c.stroke();
   }
   // olhos
-  c.strokeStyle = ink;
-  c.fillStyle = ink;
-  for (const x of ex) {
+  for (const [k, x] of ex.entries()) {
+    const s = k === 0 ? -1 : 1;
+    c.strokeStyle = ink;
+    c.fillStyle = ink;
     if (e === 'blink' || e === 'sleep') {
       c.lineWidth = 6;
       c.beginPath();
-      if (e === 'sleep') c.arc(x, eyeY - 6, 14, Math.PI * 0.15, Math.PI * 0.85);
-      else c.arc(x, eyeY - 4, 15, Math.PI * 0.1, Math.PI * 0.9);
+      c.arc(x, eyeY - 8, 17, Math.PI * 0.18, Math.PI * 0.82);
       c.stroke();
-    } else if (e === 'happy') {
+      if (lashes) {
+        c.lineWidth = 4;
+        c.beginPath();
+        c.moveTo(x + 15 * s, eyeY + 2);
+        c.lineTo(x + 22 * s, eyeY + 5);
+        c.stroke();
+      }
+      continue;
+    }
+    if (e === 'happy') {
       c.lineWidth = 7;
       c.beginPath();
-      c.arc(x, eyeY + 6, 15, Math.PI * 1.1, Math.PI * 1.9);
+      c.arc(x, eyeY + 8, 17, Math.PI * 1.12, Math.PI * 1.88);
       c.stroke();
-    } else {
-      const ry = e === 'surprised' ? 25 : e === 'focused' ? 15 : 22;
-      const rx = e === 'surprised' ? 18 : 16;
-      c.beginPath();
-      c.ellipse(x, eyeY, rx, ry, 0, 0, Math.PI * 2);
-      c.fill();
-      // íris mais clara embaixo e brilhos
-      c.fillStyle = 'rgba(120,90,150,0.55)';
-      c.beginPath();
-      c.ellipse(x, eyeY + ry * 0.45, rx * 0.7, ry * 0.38, 0, 0, Math.PI * 2);
-      c.fill();
-      c.fillStyle = '#ffffff';
-      c.beginPath();
-      c.arc(x - 6, eyeY - ry * 0.4, 6.5, 0, Math.PI * 2);
-      c.fill();
-      c.beginPath();
-      c.arc(x + 6, eyeY + ry * 0.3, 3, 0, Math.PI * 2);
-      c.fill();
+      continue;
+    }
+    const ry = e === 'surprised' ? 30 : e === 'focused' ? 19 : 27;
+    const rx = e === 'surprised' ? 22 : 20;
+    // contorno escuro, íris colorida em degradê, pupila, brilhos
+    c.beginPath();
+    c.ellipse(x, eyeY, rx, ry, 0, 0, Math.PI * 2);
+    c.fill();
+    const g = c.createLinearGradient(0, eyeY - ry, 0, eyeY + ry);
+    g.addColorStop(0, ink);
+    g.addColorStop(0.45, eyes);
+    g.addColorStop(1, '#ffffff');
+    c.fillStyle = g;
+    c.globalAlpha = 0.85;
+    c.beginPath();
+    c.ellipse(x, eyeY + 2, rx - 4, ry - 4, 0, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
+    c.fillStyle = ink;
+    c.beginPath();
+    c.ellipse(x, eyeY - 2, rx * 0.42, ry * 0.45, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.ellipse(x - 7, eyeY - ry * 0.42, 8, 9, 0, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(x + 7, eyeY + ry * 0.35, 4, 0, Math.PI * 2);
+    c.fill();
+    if (e === 'focused') {
       c.fillStyle = ink;
-      if (e === 'focused') {
-        // pálpebra
-        c.fillStyle = 'rgba(42,33,48,0.9)';
-        c.fillRect(x - 19, eyeY - ry - 3, 38, 9);
-        c.fillStyle = ink;
-      }
+      c.fillRect(x - rx - 1, eyeY - ry - 2, rx * 2 + 2, 10);
+    }
+    if (lashes) {
+      c.strokeStyle = ink;
+      c.lineWidth = 4;
+      c.beginPath();
+      c.moveTo(x + (rx - 4) * s, eyeY - ry * 0.55);
+      c.lineTo(x + (rx + 6) * s, eyeY - ry * 0.8);
+      c.moveTo(x + (rx - 1) * s, eyeY - ry * 0.25);
+      c.lineTo(x + (rx + 8) * s, eyeY - ry * 0.4);
+      c.stroke();
     }
   }
   // boca
-  c.lineWidth = 5;
+  c.lineWidth = 4.5;
   c.strokeStyle = '#5b2a33';
   c.fillStyle = '#7d3140';
   c.beginPath();
   switch (e) {
     case 'happy':
-      c.moveTo(150 - 20, mouthY - 4);
-      c.quadraticCurveTo(150, mouthY + 26, 150 + 20, mouthY - 4);
+      c.moveTo(150 - 17, mouthY - 4);
+      c.quadraticCurveTo(150, mouthY + 22, 150 + 17, mouthY - 4);
       c.closePath();
       c.fill();
       c.fillStyle = '#ff8f9e';
       c.beginPath();
-      c.ellipse(150, mouthY + 8, 9, 5, 0, 0, Math.PI * 2);
+      c.ellipse(150, mouthY + 7, 8, 4.5, 0, 0, Math.PI * 2);
       c.fill();
       return;
     case 'talk':
-      c.ellipse(150, mouthY + 2, 11, 9, 0, 0, Math.PI * 2);
+      c.ellipse(150, mouthY + 1, 9, 8, 0, 0, Math.PI * 2);
       c.fill();
       return;
     case 'surprised':
     case 'sleep':
-      c.ellipse(150, mouthY + 2, e === 'sleep' ? 6 : 9, e === 'sleep' ? 5 : 11, 0, 0, Math.PI * 2);
+      c.ellipse(150, mouthY + 1, e === 'sleep' ? 5 : 8, e === 'sleep' ? 4 : 10, 0, 0, Math.PI * 2);
       c.fill();
       return;
     case 'worried':
-      c.moveTo(150 - 14, mouthY + 6);
-      c.quadraticCurveTo(150 - 7, mouthY - 2, 150, mouthY + 4);
-      c.quadraticCurveTo(150 + 7, mouthY + 10, 150 + 14, mouthY + 2);
+      c.moveTo(150 - 12, mouthY + 5);
+      c.quadraticCurveTo(150 - 6, mouthY - 2, 150, mouthY + 3);
+      c.quadraticCurveTo(150 + 6, mouthY + 8, 150 + 12, mouthY + 1);
       c.stroke();
       return;
     case 'focused':
-      c.moveTo(150 - 10, mouthY + 3);
-      c.lineTo(150 + 10, mouthY + 3);
+      c.moveTo(150 - 8, mouthY + 2);
+      c.lineTo(150 + 8, mouthY + 2);
       c.stroke();
       return;
     default:
-      c.arc(150, mouthY - 6, 12, Math.PI * 0.2, Math.PI * 0.8);
+      // sorriso "w" de gatinho, bem pequeno
+      c.moveTo(150 - 12, mouthY - 3);
+      c.quadraticCurveTo(150 - 6, mouthY + 6, 150, mouthY - 1);
+      c.quadraticCurveTo(150 + 6, mouthY + 6, 150 + 12, mouthY - 3);
       c.stroke();
   }
 }
@@ -690,11 +749,21 @@ export class ChibiFace {
   private expr: Expression | null = null;
   private blinkAt = 0;
   private blinkUntil = 0;
+  private styleKey = '';
 
   constructor() {
     this.tex = atlas().clone();
     this.tex.repeat.set(1 / 4, 1 / 2);
     this.set('neutral');
+  }
+
+  /** Cor dos olhos e cílios do agente (troca a imagem do atlas, mantém a expressão). */
+  style(eyes: string, lashes: boolean): void {
+    const k = `${eyes}|${lashes}`;
+    if (k === this.styleKey) return;
+    this.styleKey = k;
+    this.tex.source = atlas(eyes, lashes).source;
+    this.tex.needsUpdate = true;
   }
 
   set(e: Expression): void {
@@ -719,10 +788,24 @@ export class ChibiFace {
   }
 }
 
+/** Luz de contorno suave e clara (o "brilho de boneco" nas bordas), somada à luz normal. */
+function rimLit(m: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'float chibiRim = pow(1.0 - saturate(dot(normal, geometryViewDir)), 2.6);\n' +
+        'outgoingLight += mix(diffuseColor.rgb, vec3(1.0), 0.55) * chibiRim * 0.32;\n' +
+        '#include <opaque_fragment>',
+    );
+  };
+  m.customProgramCacheKey = () => 'chibi-rim';
+  return m;
+}
+
 /** Material do corpo (cor por vértice) e do rosto. */
 export function chibiMaterials(face: ChibiFace): { body: THREE.MeshStandardMaterial; face: THREE.MeshStandardMaterial } {
   return {
-    body: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0 }),
+    body: rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.66, metalness: 0 })),
     face: new THREE.MeshStandardMaterial({ map: face.tex, transparent: true, alphaTest: 0.08, roughness: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
   };
 }
@@ -731,7 +814,8 @@ export function chibiMaterials(face: ChibiFace): { body: THREE.MeshStandardMater
  * Veste um clone do modelo-base: remove a malha Gobkit e põe o Habbinho, preso ao MESMO esqueleto do clone
  * (as animações continuam valendo). Devolve as malhas novas (para trocar quando a aparência muda).
  */
-export function dressChibi(body: THREE.Object3D, rig: ChibiRig, a: Appearance, mats: { body: THREE.Material; face: THREE.Material }): THREE.SkinnedMesh[] {
+export function dressChibi(body: THREE.Object3D, rig: ChibiRig, a: Appearance, mats: { body: THREE.Material; face: THREE.Material }, face?: ChibiFace): THREE.SkinnedMesh[] {
+  face?.style(a.eyes, a.look === 'f');
   let bones: THREE.Bone[] | null = null;
   const old: THREE.Object3D[] = [];
   body.traverse((o) => {

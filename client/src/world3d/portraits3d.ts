@@ -62,7 +62,7 @@ export class Portraits3D {
       const side = Math.max(16, Math.round(r.px * 2));
       this.renderer.setPixelRatio(1);
       this.renderer.setSize(side, side, false);
-      dressChibi(this.body, this.model.rig, appearanceFromSeed(r.seed, { look: r.look, sub: r.sub, parts: r.parts }), this.mats);
+      dressChibi(this.body, this.model.rig, appearanceFromSeed(r.seed, { look: r.look, sub: r.sub, parts: r.parts }), this.mats, this.face);
       this.renderer.render(this.scene, this.camera);
       url = this.renderer.domElement.toDataURL('image/png');
       this.cache.set(key, url);

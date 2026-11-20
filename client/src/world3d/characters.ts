@@ -230,7 +230,7 @@ class Avatar implements AvatarView {
     const lk = chibiKey(ch.appearance);
     if (lk !== this.lookKey) {
       this.lookKey = lk;
-      dressChibi(this.body, this.model.rig, ch.appearance, { body: this.materials[0]!, face: this.materials[1]! });
+      dressChibi(this.body, this.model.rig, ch.appearance, { body: this.materials[0]!, face: this.materials[1]! }, this.face ?? undefined);
     }
 
     // animação

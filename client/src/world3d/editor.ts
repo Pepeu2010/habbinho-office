@@ -108,7 +108,7 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
   const dress = () => {
     if (!body || !model || chibiKey(current) === dressed) return;
     dressed = chibiKey(current);
-    dressChibi(body, model.rig, current, mats);
+    dressChibi(body, model.rig, current, mats, face);
   };
 
   const playClip = () => {

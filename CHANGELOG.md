@@ -25,7 +25,7 @@ do meio (0.**3**.0).
   muda na hora a cada escolha de pele, cabelo, roupa, acessório ou barba (a mesma aparência vale para o 3D, o 2D e o
   Habblaud World), com animações de exemplo e uma identificação profissional que aparece sob o nome.
 - **Interface nova.** Os painéis flutuam sobre o escritório em vidro índigo com cantos arredondados, a barra do topo
-  virou ilhas separadas (marca, resumo, contas e ferramentas), o texto usa fontes arredondadas (Fredoka e Nunito) e
+  virou ilhas separadas (marca, resumo, contas e ferramentas), cada cartão de uso mostra o ícone do Claude ou do Codex na cor da conta, o texto usa fontes arredondadas (Fredoka e Nunito) e
   os status têm cores próprias (menta trabalhando, girassol quando precisa de você). A lista de salas não ocupa mais a
   altura toda da tela, e no 3D os avatares da lista, da gaveta e do feed são retratos do próprio Habbinho.
 - **Biblioteca e sala de reuniões.** O núcleo do prédio ganhou uma terceira coluna, no 2D e no 3D: a biblioteca

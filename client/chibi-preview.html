@@ -9,7 +9,8 @@ const W = 1800, H = 700;
 const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NeutralToneMapping;
 const s = new THREE.Scene(); s.background = new THREE.Color('#dfe6ee');
 s.add(new THREE.HemisphereLight('#f6f2ff', '#8a7a66', 1.6)); const k = new THREE.DirectionalLight('#fff1dc', 2.4); k.position.set(2, 4, 3); s.add(k);
-const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 100); cam.position.set(0, 1.1, 9); cam.lookAt(0, 0.55, 0);
+const close = q.has('close');
+const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 100); if (close) { cam.position.set(0, 0.95, 4.2); cam.lookAt(0, 0.62, 0); } else { cam.position.set(0, 1.1, 9); cam.lookAt(0, 0.55, 0); }
 const assets = new CharacterAssets(); const m = await assets.load(defaultModelFor());
 await new Promise(r => setTimeout(r, 1500)); assets.refreshClips(m);
 const seeds = (q.get('seeds') ?? '1,2,3,4,5,6,7,8,9,10').split(',').map(Number);
