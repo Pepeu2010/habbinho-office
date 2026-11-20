@@ -2219,7 +2219,6 @@ export const ES: Readonly<Record<string, string>> = {
   "[mod] Erro inesperado: {0}": "[mod] Error inesperado: {0}",
 
   // scripts/statusline-install.ts
-  "Uso: npm run usage:<install|uninstall|status> [-- opções]\n\n  install     envolve o statusline de cada conta com o tap do Habblaud (faz backup do settings.json)\n  uninstall   restaura o statusline original de cada conta\n  status      mostra se o tap está instalado e quando chegou o último uso de cada conta\n\nOpções:\n  --dry-run        mostra o que mudaria, sem gravar nada\n  --node <cmd>     comando do node usado no statusline (padrão: detectado no PATH)\n  -h, --help       mostra esta ajuda\n\nContas: as mesmas do servidor (~/.claude* com projects/ ou sessions/, CLAUDE_CONFIG_DIR ou\nHABBLAUD_CLAUDE_DIRS). Uso capturado em HABBLAUD_USAGE_DIR (padrão ~/.habblaud/usage).": "Uso: npm run usage:<install|uninstall|status> [-- opciones]\n\n  install     envuelve el statusline de cada cuenta con el tap de Habblaud (hace una copia de seguridad del settings.json)\n  uninstall   restaura el statusline original de cada cuenta\n  status      muestra si el tap está instalado y cuándo llegó el último uso de cada cuenta\n\nOpciones:\n  --dry-run        muestra lo que cambiaría, sin guardar nada\n  --node <cmd>     comando de node usado en el statusline (por defecto: detectado en el PATH)\n  -h, --help       muestra esta ayuda\n\nCuentas: las mismas del servidor (~/.claude* con projects/ o sessions/, CLAUDE_CONFIG_DIR o\nHABBLAUD_CLAUDE_DIRS). Uso capturado en HABBLAUD_USAGE_DIR (por defecto ~/.habblaud/usage).",
   "statusLine em formato desconhecido; nada foi alterado": "statusLine en un formato desconocido; no se modificó nada",
   "sem statusline antes: criado um que só captura o uso (não imprime nada)": "sin statusline antes: se creó uno que solo captura el uso (no imprime nada)",
   "statusLine do tipo \"{0}\" não é suportado; nada foi alterado": "statusLine del tipo \"{0}\" no es compatible; no se modificó nada",
@@ -2534,7 +2533,6 @@ export const ES: Readonly<Record<string, string>> = {
   "[remote-mdns] anunciando {0}.local -> {1}": "[remote-mdns] anunciando {0}.local -> {1}",
 
   // scripts/remote-setup.ts
-  "Uso: npm run remote:setup [-- opções]\n\nLiga o acesso pelo celular (https://<nome>.local) com usuário, senha e HTTPS.\n\n  --user <nome>        usuário do login (padrão: o seu usuário do sistema)\n  --name <nome>        endereço <nome>.local (padrão: habblaud)\n  --domain <endereço>  endereço próprio, ex.: meuclaude.home (precisa de uma entrada no DNS do roteador)\n  --port <n>           porta no computador (padrão: 443 se estiver livre, senão 4748)\n  --allow <lista>      o que o celular pode fazer: permissions, messages, terminal, spawn, none (padrão: permissions)\n  --password-stdin     lê a senha da entrada padrão (automação), em vez de perguntar\n  --no-service         não instala o serviço do anúncio <nome>.local (rode npm run remote:mdns você mesmo)\n  --off                desliga o acesso pelo celular (tira as linhas do .env e o serviço; mantém a CA)": "Uso: npm run remote:setup [-- opciones]\n\nActiva el acceso desde el celular (https://<nombre>.local) con usuario, contraseña y HTTPS.\n\n  --user <nombre>      usuario del inicio de sesión (por defecto: tu usuario del sistema)\n  --name <nombre>      dirección <nombre>.local (por defecto: habblaud)\n  --domain <dominio>   dirección propia, p. ej., miclaude.home (necesita una entrada en el DNS del router)\n  --port <n>           puerto en el equipo (por defecto: 443 si está libre, si no 4748)\n  --allow <lista>      lo que puede hacer el celular: permissions, messages, terminal, spawn, none (por defecto: permissions)\n  --password-stdin     lee la contraseña de la entrada estándar (automatización), en vez de preguntarla\n  --no-service         no instala el servicio de anuncio de <nombre>.local (ejecuta npm run remote:mdns tú mismo)\n  --off                desactiva el acceso desde el celular (quita las líneas del .env y el servicio; mantiene la CA)",
   "falta o valor de {0}": "falta el valor de {0}",
   "opção desconhecida: {0}": "opción desconocida: {0}",
   "porta inválida": "puerto inválido",
@@ -3276,18 +3274,6 @@ export const ES: Readonly<Record<string, string>> = {
   "O carimbo não foi deixado. Tente de novo.": "El sello no se dejó. Inténtalo de nuevo.",
 
   // client/src/world3d (escritório 3D) e client/src/ui/settings.ts (Visual)
-  "Engenheiro de TI": "Ingeniero de TI",
-  "Contadora": "Contadora",
-  "Diretor": "Director",
-  "Estagiária": "Becaria",
-  "Gerente": "Gerente",
-  "Recepcionista": "Recepcionista",
-  "Vendedor": "Vendedor",
-  "Segurança": "Guardia de seguridad",
-  "Analista": "Analista",
-  "Desenvolvedor": "Desarrollador",
-  "Coordenadora": "Coordinadora",
-  "Pesquisador": "Investigador",
   "Visual": "Visual",
   "Visão do escritório": "Vista de la oficina",
   "3D": "3D",
@@ -3305,20 +3291,11 @@ export const ES: Readonly<Record<string, string>> = {
   "Digitando": "Escribiendo",
   "Comemorando": "Celebrando",
   "Acenando": "Saludando",
-  "Roupa": "Ropa",
-  "Calça/saia": "Pantalón/falda",
-  "Calçados": "Calzado",
-  "Aparência 3D": "Apariencia 3D",
   "Prévia 3D do personagem: arraste para girar, role para aproximar": "Vista previa 3D del personaje: arrastra para girar, desplaza para acercar",
   "Arraste para girar · role para aproximar": "Arrastra para girar · desplaza para acercar",
-  "Personagem-base": "Personaje base",
   "Animação de prévia": "Animación de vista previa",
-  "Cores": "Colores",
-  "Cor do acessório": "Color del accesorio",
   "Identificação profissional": "Identificación profesional",
   "Ex.: Revisora de código": "Ej.: Revisora de código",
-  "Restaurar padrão 3D": "Restaurar 3D predeterminado",
-  "Aparência 2D (pixel art e Habblaud World)": "Apariencia 2D (pixel art y Habblaud World)",
   // client/src/world/layout/core.ts (biblioteca e sala de reuniões)
   "Biblioteca": "Biblioteca",
   "Sala de reuniões": "Sala de reuniones",
@@ -3386,4 +3363,8 @@ export const ES: Readonly<Record<string, string>> = {
   "Poucos": "Pocos",
   "Visitantes": "Visitantes",
   "Personagens decorativos que circulam pelas áreas comuns. Não são agentes: não contam em nada e não podem ser selecionados.": "Personajes decorativos que circulan por las áreas comunes. No son agentes: no cuentan para nada y no se pueden seleccionar.",
+  // client/src/world3d (Habbinho, prévia 3D) e ui/character-editor.ts
+  "Aparência (vale para o 3D, o 2D e o Habblaud World)": "Apariencia (vale para el 3D, el 2D y Habblaud World)",
+  "Habbinho": "Habbinho",
+  "Prévia 3D": "Vista previa 3D",
 };

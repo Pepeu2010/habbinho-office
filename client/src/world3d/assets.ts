@@ -1,4 +1,5 @@
-// Assets 3D: personagens chibi (Gobkit, CC0) e kit de natureza (Gobkit, CC0). Origem e licença em
+// Assets 3D: esqueleto e animações dos personagens (Gobkit, CC0; o visual é o Habbinho, chibi.ts) e kit de natureza
+// (Gobkit, CC0). Origem e licença em
 // client/public/assets/3d/ASSETS.md.
 //
 // Todos os personagens Gobkit usam o MESMO esqueleto de 13 ossos (só os nomes dos ossos mudam de pack para pack).
@@ -8,6 +9,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { tr } from '../../../shared/i18n';
+import { measureRig, type ChibiRig } from './chibi';
 
 const BASE = '/assets/3d/';
 
@@ -24,25 +26,14 @@ export interface CharacterModelDef {
   look: 'f' | 'm';
 }
 
-export const CHARACTER_MODELS: readonly CharacterModelDef[] = [
-  { id: 'it_engineer', file: 'ItEngineer.glb', label: tr('Engenheiro de TI'), family: 'office', look: 'm' },
-  { id: 'accountant', file: 'Accountant.glb', label: tr('Contadora'), family: 'office', look: 'f' },
-  { id: 'ceo', file: 'CompanyCeo.glb', label: tr('Diretor'), family: 'office', look: 'm' },
-  { id: 'intern', file: 'OfficeIntern.glb', label: tr('Estagiária'), family: 'office', look: 'f' },
-  { id: 'manager', file: 'OfficeManager.glb', label: tr('Gerente'), family: 'office', look: 'm' },
-  { id: 'receptionist', file: 'Receptionist.glb', label: tr('Recepcionista'), family: 'office', look: 'f' },
-  { id: 'sales', file: 'SalesRep.glb', label: tr('Vendedor'), family: 'office', look: 'm' },
-  { id: 'security', file: 'SecurityGuard.glb', label: tr('Segurança'), family: 'office', look: 'm' },
-  { id: 'office_lady', file: 'OfficeLady.glb', label: tr('Analista'), family: 'basic', look: 'f' },
-  { id: 'office_worker', file: 'OfficeWorker.glb', label: tr('Desenvolvedor'), family: 'basic', look: 'm' },
-  { id: 'store_manager', file: 'StoreManager.glb', label: tr('Coordenadora'), family: 'basic', look: 'f' },
-  { id: 'student', file: 'Student.glb', label: tr('Pesquisador'), family: 'basic', look: 'm' },
-];
-
+/**
+ * Personagem: o Habbinho (chibi.ts), modelado em código a partir da aparência do agente. O arquivo Gobkit só fornece o
+ * esqueleto e as animações (a malha dele é descartada).
+ */
+export const CHARACTER_MODELS: readonly CharacterModelDef[] = [{ id: 'habbinho', file: 'CompanyCeo.glb', label: tr('Habbinho'), family: 'office', look: 'm' }];
 /** Modelo padrão de um agente: estável pela semente e respeitando o visual (f/m) do Habblaud. */
-export function defaultModelFor(seed: number, look: 'f' | 'm' | undefined): CharacterModelDef {
-  const pool = CHARACTER_MODELS.filter((m) => !look || m.look === look);
-  return pool[Math.abs(seed) % pool.length] ?? CHARACTER_MODELS[0]!;
+export function defaultModelFor(_seed?: number, _look?: 'f' | 'm'): CharacterModelDef {
+  return CHARACTER_MODELS[0]!;
 }
 
 export function modelById(id: string | undefined): CharacterModelDef | undefined {
@@ -59,60 +50,8 @@ export interface LoadedModel {
   clips: Map<string, THREE.AnimationClip>;
   /** Nomes dos ossos (ordem do skin) — 0 = raiz, 1 = quadril, 6 = peito, 8 = mão esq., 10 = mão dir., 12 = cabeça. */
   bones: string[];
-  /** Cores do atlas usadas pela malha (para o editor recolorir), por região. */
-  atlas: THREE.Texture | null;
-  /** Medidas da cabeça em repouso (acessórios), em tiles, no referencial do osso da cabeça alinhado ao corpo. */
-  head: HeadInfo;
-}
-
-export interface HeadInfo {
-  /** Do osso da cabeça até o topo, a frente, a nuca e a lateral. */
-  top: number;
-  front: number;
-  back: number;
-  halfW: number;
-  /** Rotação e escala do osso da cabeça em relação à raiz do modelo, em repouso. */
-  restQuat: THREE.Quaternion;
-  restScale: number;
-}
-
-/** Caixa da cabeça: vértices acima do osso da cabeça, medidos na pose de repouso. */
-function measureHead(scene: THREE.Object3D, bones: string[], scale: number): HeadInfo {
-  scene.updateMatrixWorld(true);
-  const head = scene.getObjectByName(bones[BONE.head] ?? '');
-  const fallback: HeadInfo = { top: 0.42, front: 0.2, back: 0.2, halfW: 0.22, restQuat: new THREE.Quaternion(), restScale: 1 };
-  if (!head) return fallback;
-  const hp = head.getWorldPosition(new THREE.Vector3());
-  const hq = head.getWorldQuaternion(new THREE.Quaternion());
-  const hs = head.getWorldScale(new THREE.Vector3()).x;
-  // o repouso é a pose T: os braços ficam na altura do osso da cabeça. Só conta o que está bem acima dos ombros.
-  const pts: THREE.Vector3[] = [];
-  let maxY = -Infinity;
-  scene.traverse((o) => {
-    const m = o as THREE.SkinnedMesh;
-    if (!m.isMesh) return;
-    const pos = m.geometry.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const v = new THREE.Vector3();
-      if (m.isSkinnedMesh) m.getVertexPosition(i, v);
-      else v.fromBufferAttribute(pos, i);
-      v.applyMatrix4(m.matrixWorld);
-      if (v.y > hp.y) pts.push(v);
-      maxY = Math.max(maxY, v.y);
-    }
-  });
-  const cut = hp.y + (maxY - hp.y) * 0.25;
-  const box = new THREE.Box3();
-  for (const v of pts) if (v.y > cut) box.expandByPoint(v);
-  if (box.isEmpty()) return fallback;
-  return {
-    top: (box.max.y - hp.y) * scale,
-    front: (box.max.z - hp.z) * scale,
-    back: (hp.z - box.min.z) * scale,
-    halfW: (Math.max(box.max.x - hp.x, hp.x - box.min.x)) * scale,
-    restQuat: hq,
-    restScale: hs,
-  };
+  /** Medidas do esqueleto em repouso, para vestir o Habbinho. */
+  rig: ChibiRig;
 }
 
 export const BONE = { root: 0, hips: 1, legL: 2, footL: 3, legR: 4, footR: 5, chest: 6, armL: 7, handL: 8, armR: 9, handR: 10, neck: 11, head: 12 } as const;
@@ -195,7 +134,8 @@ class ClipLibrary {
 }
 
 /** Arquivos do pack de escritório que completam a biblioteca (cada um traz alguns clipes exclusivos). */
-const LIBRARY_FILES = ['ItEngineer.glb', 'CompanyCeo.glb', 'OfficeManager.glb', 'Receptionist.glb', 'SalesRep.glb', 'Accountant.glb'];
+// o Diretor primeiro: ele não segura objeto, então os clipes dele têm os braços livres (os outros completam o que faltar)
+const LIBRARY_FILES = ['CompanyCeo.glb', 'ItEngineer.glb', 'OfficeManager.glb', 'Receptionist.glb', 'SalesRep.glb', 'Accountant.glb'];
 
 export class CharacterAssets {
   private library = new ClipLibrary();
@@ -204,7 +144,7 @@ export class CharacterAssets {
   private gltfs = new Map<string, Promise<GLTF>>();
 
   constructor() {
-    // a biblioteca básica (ItEngineer) primeiro: ela define o esqueleto de referência
+    // o primeiro arquivo da biblioteca define o esqueleto de referência
     this.libraryReady = this.gltf(LIBRARY_FILES[0]!).then((g) => {
       const bones = skinBones(g.scene);
       this.library.add(g, bones, restHipsHeight(g.scene, bones));
@@ -258,21 +198,14 @@ export class CharacterAssets {
         });
         const bones = skinBones(scene);
         const hips = restHipsHeight(scene, bones);
-        const box = new THREE.Box3().setFromObject(scene, true);
-        const height = Math.max(1e-4, box.max.y - box.min.y);
-        let atlas: THREE.Texture | null = null;
-        scene.traverse((o) => {
-          const m = o as THREE.Mesh;
-          if (m.isMesh && !atlas) atlas = (m.material as THREE.MeshStandardMaterial).map ?? null;
-        });
+        const rig = measureRig(scene, bones);
         const model: LoadedModel = {
           def,
           scene,
-          scale: CHAR_H / height,
+          scale: CHAR_H / rig.height,
           clips: this.library.forModel(bones, hips),
           bones,
-          atlas,
-          head: measureHead(scene, bones, CHAR_H / height),
+          rig,
         };
         return model;
       });

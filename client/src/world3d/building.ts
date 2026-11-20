@@ -185,6 +185,12 @@ export class Building3D {
 
   // ================================================================= montagem
 
+  /** Refaz todas as salas no próximo sync (ex.: chegaram os modelos de móveis). */
+  invalidate(): void {
+    for (const v of this.areas.values()) this.disposeArea(v);
+    this.areas.clear();
+  }
+
   private disposeArea(v: AreaView): void {
     this.root.remove(v.group);
     for (const id of v.hooks.keys()) this.screens.delete(id);

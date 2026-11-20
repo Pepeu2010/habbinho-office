@@ -1,0 +1,283 @@
+/* Tema "vidro do entardecer" (sobre styles.css): a cena do escritório é a estrela, e a interface flutua sobre ela em
+   painéis de vidro índigo, soltos das bordas, com cantos generosos e tipografia arredondada que conversa com os
+   bonecos chibi. Fredoka nos títulos e números, Nunito no texto. Cores de status próprias: menta (trabalhando),
+   girassol (precisa de você), pervinca (destaque/seleção).
+   Tudo aqui sobrepõe variáveis e poucas regras estruturais; o comportamento continua em styles.css. */
+
+.ui-root {
+  --ink-900: #161a33;
+  --ink-800: #1f2447;
+  --ink-700: #2a3060;
+  --glass: rgba(31, 36, 71, 0.72);
+  --glass-strong: rgba(28, 32, 64, 0.94);
+  --periwinkle: #9aa8ff;
+  --mint: #4fe0ad;
+  --sunflower: #ffc84a;
+  --coral: #ff7a8a;
+
+  --ui-bg: var(--glass);
+  --ui-bg-solid: var(--glass-strong);
+  --ui-bg-soft: rgba(174, 186, 255, 0.07);
+  --ui-bg-hover: rgba(174, 186, 255, 0.13);
+  --ui-line: rgba(174, 186, 255, 0.14);
+  --ui-line-strong: rgba(174, 186, 255, 0.26);
+  --ui-text: #eef0ff;
+  --ui-muted: #aeb4d8;
+  --ui-faint: #959cc6;
+  --ui-accent: var(--periwinkle);
+  --ui-accent-soft: rgba(154, 168, 255, 0.18);
+
+  --st-working: var(--mint);
+  --st-waiting: var(--sunflower);
+  --st-done: #8fb4ff;
+  --lv-ok: var(--mint);
+  --lv-warn: var(--sunflower);
+  --lv-crit: var(--coral);
+
+  --font-px: 'Fredoka Variable', 'Nunito Variable', system-ui, sans-serif;
+  --font-ui: 'Nunito Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fredoka Variable', 'Nunito Variable', system-ui, sans-serif;
+
+  --radius: 18px;
+  --radius-sm: 11px;
+  --gap: 12px;
+  --top-h: 60px;
+  --side-w: 318px;
+
+  font: 500 13.5px/1.45 var(--font-ui);
+}
+
+/* ------------------------------------------------------------------ vidro */
+
+.ui-root .ui-panel {
+  /* vidro sem desfoque de fundo: com o escritório 3D redesenhando a cada quadro, o desfoque custava de 6 a 14 FPS
+     a 1080p (medido com scripts/check-3d.mjs); a opacidade alta mantém o texto legível */
+  background: linear-gradient(180deg, rgba(42, 48, 96, 0.93), rgba(28, 32, 66, 0.94));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(190, 200, 255, 0.16);
+  box-shadow:
+    0 18px 40px rgba(10, 12, 32, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ------------------------------------------------------------------ barra do topo: ilhas flutuantes */
+
+.ui-root .ui-topbar {
+  inset: var(--gap) var(--gap) auto var(--gap);
+  height: var(--top-h);
+  padding: 0;
+  gap: 10px;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.ui-root .ui-topbar > * {
+  pointer-events: auto;
+}
+
+.ui-root .ui-topbar__left,
+.ui-root .ui-counters,
+.ui-root .ui-topbar__right {
+  height: 100%;
+  padding: 0 10px;
+  border-radius: 999px;
+  /* sem desfoque de fundo: o escritório redesenha a cada quadro e o desfoque custaria FPS */
+  background: linear-gradient(180deg, rgba(48, 54, 108, 0.94), rgba(32, 36, 74, 0.95));
+  border: 1px solid rgba(190, 200, 255, 0.16);
+  box-shadow:
+    0 14px 30px rgba(10, 12, 32, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.ui-root .ui-topbar__left {
+  padding-left: 6px;
+  padding-right: 16px;
+}
+
+.ui-root .ui-counters {
+  align-items: center;
+  padding: 0 6px;
+}
+
+.ui-root .ui-counter {
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.ui-root .ui-counter + .ui-counter {
+  box-shadow: none;
+}
+
+.ui-root .ui-counter__value {
+  font: 600 20px/1 var(--font-display);
+  color: #fff;
+}
+
+.ui-root .ui-counter__label {
+  font: 600 11px/1.2 var(--font-ui);
+  color: var(--ui-muted);
+}
+
+.ui-root .ui-counter--waiting.is-active {
+  background: var(--sunflower);
+}
+
+.ui-root .ui-counter--waiting.is-active .ui-counter__value,
+.ui-root .ui-counter--waiting.is-active .ui-counter__label {
+  color: var(--ink-900);
+}
+
+/* marca: o nome em Fredoka no lugar do logotipo em pixels */
+.ui-root .ui-wordmark {
+  display: none;
+}
+
+.ui-root .ui-brand__name::before {
+  content: 'Habblaud';
+  display: block;
+  font: 600 24px/1 var(--font-display);
+  letter-spacing: -0.01em;
+  background: linear-gradient(90deg, #ffffff 10%, #c9d0ff 55%, var(--periwinkle));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ui-root .ui-brand__mark img {
+  image-rendering: auto;
+  border-radius: 10px;
+}
+
+/* cartões de uso: pílulas */
+.ui-root .ui-usage-card {
+  border-radius: 999px;
+  padding: 6px 16px 6px 7px;
+  /* sem desfoque de fundo: o escritório redesenha a cada quadro e o desfoque custaria FPS */
+  background: linear-gradient(180deg, rgba(48, 54, 108, 0.94), rgba(32, 36, 74, 0.95));
+  border: 1px solid rgba(190, 200, 255, 0.16);
+  box-shadow: 0 14px 30px rgba(10, 12, 32, 0.3);
+}
+
+.ui-root .ui-usage-card > .ui-acc-chip {
+  border-radius: 50%;
+}
+
+/* ------------------------------------------------------------------ painéis laterais e feed */
+
+.ui-root .ui-sidebar {
+  top: calc(var(--top-h) + var(--gap) * 2);
+  bottom: auto;
+  max-height: calc(100% - var(--top-h) - var(--gap) * 3);
+}
+
+.ui-root .ui-side__title h2,
+.ui-root .ui-feed h2,
+.ui-root .ui-drawer h2,
+.ui-root .ui-drawer h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.ui-root .ui-side__title h2 {
+  font-size: 19px;
+}
+
+.ui-root .ui-search {
+  border-radius: 999px;
+}
+
+.ui-root .ui-room {
+  border-radius: 14px;
+  background: rgba(174, 186, 255, 0.06);
+  border-color: rgba(190, 200, 255, 0.12);
+}
+
+.ui-root .ui-room__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.ui-root .ui-agent {
+  border-radius: 12px;
+}
+
+/* ------------------------------------------------------------------ botões */
+
+.ui-root .ui-btn {
+  border-radius: 999px;
+  height: 32px;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+.ui-root .ui-btn--primary {
+  background: linear-gradient(180deg, #b3beff, #8292ff);
+  border-color: transparent;
+  color: var(--ink-900);
+  box-shadow: 0 6px 16px rgba(110, 125, 255, 0.35);
+}
+
+.ui-root .ui-btn--primary:hover {
+  background: linear-gradient(180deg, #c3ccff, #94a2ff);
+}
+
+.ui-root .ui-icon-btn {
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+}
+
+.ui-root .ui-icon-btn--sm {
+  width: 28px;
+  height: 28px;
+}
+
+.ui-root .ui-icon-btn[aria-pressed='true'],
+.ui-root .ui-icon-btn[aria-expanded='true'] {
+  color: var(--ink-900);
+  background: var(--periwinkle);
+}
+
+.ui-root .ui-char__chip {
+  border-radius: 999px;
+}
+
+.ui-root :focus-visible {
+  outline-color: var(--sunflower);
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ui-root .ui-panel,
+  .ui-root .ui-topbar__left,
+  .ui-root .ui-counters,
+  .ui-root .ui-topbar__right,
+  .ui-root .ui-usage-card {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* retratos 3D: busto do personagem, suave (não pixelado), num fundo redondo com a cor da conta */
+.ui-root .ui-avatar {
+  border-radius: 50%;
+}
+
+.ui-root .ui-avatar.is-3d {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.22), transparent 65%),
+    color-mix(in srgb, var(--acc, #9aa8ff) 40%, #2a3060);
+}
+
+.ui-root .ui-avatar.is-3d img {
+  image-rendering: auto;
+}

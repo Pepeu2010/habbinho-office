@@ -1,10 +1,21 @@
-// Móveis 3D do escritório, modelados com peças arredondadas do kit (sem assets externos: estilo único e coerente
-// com os bonecos chibi). Cada função recebe o footprint em tiles e devolve um grupo com a ORIGEM no canto noroeste
+// Móveis 3D do escritório: modelos CC0 baixados (props.ts: Kenney e KayKit) onde existem, e peças arredondadas do kit
+// para o resto (e enquanto os modelos carregam). Cada função recebe o footprint em tiles e devolve um grupo com a ORIGEM no canto noroeste
 // do footprint (x para leste, z para o sul/câmera, y para cima). Itens de parede: origem no centro da base, na face
 // da parede, virados para +z (para dentro da sala).
 import * as THREE from 'three';
 import type { FurnitureKind, RoomTheme } from '../art/api';
 import { PAL, block, canvasTex, cyl, mat, pick, plane, put, rbox, sphere, texMat } from './kit';
+import { partBox, prop, type Fit, type PropName } from './props';
+
+/** Modelo baixado (props.ts) num ponto do grupo, girado; null se ainda não carregou (o chamador desenha o procedural). */
+function place(g: THREE.Object3D, name: PropName, fit: Fit, x: number, y: number, z: number, ry = 0, colors?: Record<string, string>): THREE.Object3D | null {
+  const o = prop(name, fit, colors);
+  if (!o) return null;
+  o.position.set(x, y, z);
+  o.rotation.y = ry;
+  g.add(o);
+  return o;
+}
 
 /** Alturas coordenadas com o tamanho dos personagens (ver characters.ts: CHAR_H). */
 export const SEAT_H = 0.3;
@@ -101,6 +112,17 @@ function monitor(g: THREE.Group, x: number, y: number, z: number, faceSouth: boo
   const m = new THREE.Group();
   m.position.set(x, y, z);
   m.rotation.y = ry;
+  const model = place(m, 'computerScreen', { w: 0.66 }, 0, 0, 0);
+  if (model) {
+    // a tela dinâmica cobre o painel claro do modelo
+    g.add(m);
+    const b = partBox(model, 'metal');
+    const c = b.getCenter(new THREE.Vector3());
+    const screen = put(m, plane((b.max.x - b.min.x) * 0.94, (b.max.y - b.min.y) * 0.9), screenMat('off'), c.x, c.y, b.max.z + 0.004, { shadow: false });
+    screen.userData.dynamic = true;
+    hooks.screen = screen;
+    return;
+  }
   block(m, 0.16, 0.012, 0.1, PAL.charcoal, 0, 0, 0, 0.006);
   block(m, 0.03, 0.14, 0.03, PAL.charcoal, 0, 0.01, -0.02, 0.01);
   block(m, 0.62, 0.36, 0.035, PAL.black, 0, 0.12, 0, 0.02);
@@ -111,6 +133,10 @@ function monitor(g: THREE.Group, x: number, y: number, z: number, faceSouth: boo
 }
 
 function keyboard(g: THREE.Group, x: number, y: number, z: number, ry = 0): void {
+  if (place(g, 'computerKeyboard', { w: 0.36 }, x, y, z, ry)) {
+    place(g, 'computerMouse', { w: 0.05 }, x + (ry ? -0.27 : 0.27), y, z, ry);
+    return;
+  }
   const k = block(g, 0.34, 0.016, 0.11, PAL.white, x, y, z, 0.008);
   k.rotation.y = ry;
   const mouse = block(g, 0.045, 0.02, 0.07, PAL.white, x + (ry ? -0.26 : 0.26), y, z, 0.02);
@@ -140,6 +166,7 @@ function foliage(g: THREE.Group, x: number, y: number, z: number, r: number, col
 }
 
 function chair(g: THREE.Group, cx: number, cz: number, backSouth: boolean, color: string): void {
+  if (place(g, 'chairDesk', { h: 0.66 }, cx, 0, cz, backSouth ? Math.PI : 0, { carpet: color })) return;
   const c = new THREE.Group();
   c.position.set(cx, 0, cz);
   c.rotation.y = backSouth ? 0 : Math.PI;
@@ -230,11 +257,14 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     put(g, sphere(0.018, 8), mat('#5fd47a', { emissive: '#5fd47a', emissiveIntensity: 1.2 }), 0.7, 0.6, 0.62);
   },
   trash_bin: (g) => {
+    if (place(g, 'trashcan', { h: 0.4 }, 0.5, 0, 0.55)) return;
     put(g, cyl(0.15, 0.12, 0.3, 16), mat(PAL.greyDark, { rough: 0.6 }), 0.5, 0, 0.55);
     put(g, sphere(0.05, 8), mat(PAL.paper), 0.5, 0.26, 0.55);
   },
   plant_small: (g, _w, _h, ctx) => {
     const v = ctx.variant ?? pick(['fern', 'succulent', 'flower'], ctx.seed);
+    const model = pick<[PropName, number]>([['cactusS1', 0.45], ['cactusS2', 0.45], ['plantSmall2', 0.5], ['plantSmall1', 0.5]], ctx.seed);
+    if (place(g, model[0], { h: model[1] }, 0.5, 0, 0.55, ctx.seed % 4)) return;
     pot(g, 0.5, 0.55, 0.14, 0.22, v === 'succulent' ? PAL.cream : PAL.terracotta);
     if (v === 'flower') {
       foliage(g, 0.5, 0.22, 0.55, 0.16, PAL.leaf, ctx.seed, 4);
@@ -248,6 +278,8 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
   plant_tall: (g, _w, _h, ctx) => {
     const v = ctx.variant ?? pick(['palm', 'ficus', 'monstera', 'bonsai'], ctx.seed);
+    const model = pick<[PropName, number]>([['pottedPlant', 1.25], ['cactusM1', 0.95], ['pottedPlant', 1.1], ['cactusM2', 0.95]], ctx.seed);
+    if (place(g, model[0], { h: model[1] }, 0.5, 0, 0.5, ctx.seed % 6)) return;
     pot(g, 0.5, 0.5, 0.2, 0.34, v === 'bonsai' ? PAL.navy : pick([PAL.terracotta, PAL.cream, PAL.charcoal], ctx.seed));
     if (v === 'bonsai') {
       put(g, cyl(0.03, 0.05, 0.3, 8), mat(PAL.woodDark), 0.5, 0.34, 0.5);
@@ -285,11 +317,18 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.36, 0.02, 0.24, PAL.greyDark, w / 2 + 0.1, DESK_H, h / 2 - 0.05, 0.01);
   },
   stool: (g) => {
+    if (place(g, 'stool', { h: STOOL_H }, 0.5, 0, 0.5)) return;
     put(g, cyl(0.17, 0.17, 0.07, 16), mat(PAL.mustard), 0.5, STOOL_H - 0.07, 0.5);
     put(g, cyl(0.025, 0.025, STOOL_H - 0.07, 8), mat(PAL.greyDark, { metal: 0.5, rough: 0.4 }), 0.5, 0, 0.5);
     put(g, cyl(0.13, 0.15, 0.02, 16), mat(PAL.greyDark, { metal: 0.5, rough: 0.4 }), 0.5, 0, 0.5);
   },
   floor_lamp: (g) => {
+    const lamp = place(g, 'lamp', { h: 1.45 }, 0.5, 0, 0.5);
+    if (lamp) {
+      // brilho da cúpula à noite (o tecido do modelo não emite)
+      put(g, sphere(0.1, 10), mat('#ffe2a8', { emissive: '#ffd9a0', emissiveIntensity: 0.9 }), 0.5, 1.22, 0.5, { shadow: false });
+      return;
+    }
     put(g, cyl(0.13, 0.15, 0.03, 16), mat(PAL.charcoal), 0.5, 0, 0.5);
     put(g, cyl(0.015, 0.015, 1.3, 8), mat(PAL.charcoal, { metal: 0.6, rough: 0.3 }), 0.5, 0.03, 0.5);
     put(g, cyl(0.12, 0.2, 0.22, 18), mat(PAL.cream, { emissive: '#ffd9a0', emissiveIntensity: 0.6 }), 0.5, 1.28, 0.5);
@@ -308,6 +347,10 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
   coffee_machine: (g) => {
     counterBase(g, false);
+    if (place(g, 'coffeeMachine', { h: 0.36 }, 0.5, 0.64, 0.4)) {
+      mug(g, 0.22, 0.64, 0.55, PAL.cream);
+      return;
+    }
     block(g, 0.36, 0.42, 0.3, PAL.charcoal, 0.5, 0.63, 0.38, 0.04);
     block(g, 0.3, 0.08, 0.04, PAL.metal, 0.5, 0.92, 0.54, 0.01);
     put(g, sphere(0.02, 8), mat('#ff8a3c', { emissive: '#ff8a3c', emissiveIntensity: 1.5 }), 0.62, 0.95, 0.54);
@@ -315,10 +358,12 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
   microwave: (g) => {
     counterBase(g, false);
+    if (place(g, 'microwave', { w: 0.58 }, 0.5, 0.64, 0.4)) return;
     block(g, 0.6, 0.3, 0.4, PAL.white, 0.5, 0.63, 0.4, 0.03);
     block(g, 0.36, 0.22, 0.02, PAL.black, 0.42, 0.67, 0.61, 0.01);
   },
   fridge: (g) => {
+    if (place(g, 'fridge', { h: 1.7 }, 0.5, 0, 0.45)) return;
     block(g, 0.78, 1.65, 0.7, PAL.white, 0.5, 0, 0.45, 0.06);
     block(g, 0.74, 0.015, 0.02, PAL.grey, 0.5, 1.05, 0.81, 0.005);
     block(g, 0.04, 0.3, 0.04, PAL.metal, 0.82, 1.15, 0.82, 0.015);
@@ -333,12 +378,17 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.12, 0.3, 0.02, PAL.charcoal, 0.8, 0.9, 0.81, 0.01);
   },
   cafe_table: (g) => {
+    if (place(g, 'tableRound', { h: DESK_H }, 0.5, 0, 0.5)) {
+      put(g, cyl(0.06, 0.06, 0.012, 12), mat(PAL.white), 0.42, DESK_H, 0.45);
+      return;
+    }
     put(g, cyl(0.32, 0.32, 0.04, 22), mat(PAL.oak), 0.5, DESK_H - 0.04, 0.5);
     put(g, cyl(0.03, 0.03, DESK_H - 0.04, 8), mat(PAL.charcoal, { metal: 0.5, rough: 0.4 }), 0.5, 0, 0.5);
     put(g, cyl(0.16, 0.18, 0.02, 16), mat(PAL.charcoal), 0.5, 0, 0.5);
     put(g, cyl(0.06, 0.06, 0.012, 12), mat(PAL.white), 0.42, DESK_H, 0.45);
   },
   cafe_chair: (g, _w, _h, ctx) => {
+    if (place(g, 'woodChair', { h: 0.84 }, 0.5, 0, 0.5, dirYaw(ctx.variant))) return;
     const c = new THREE.Group();
     c.position.set(0.5, 0, 0.5);
     c.rotation.y = dirYaw(ctx.variant);
@@ -349,6 +399,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     g.add(c);
   },
   sofa: (g, w, _h, ctx) => {
+    if (place(g, 'couch', { w: w - 0.1 }, w / 2, 0, 0.5, ctx.variant === 'up' ? Math.PI : 0)) return;
     const c = new THREE.Group();
     c.position.set(w / 2, 0, 0.5);
     c.rotation.y = ctx.variant === 'up' ? Math.PI : 0;
@@ -363,6 +414,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     g.add(c);
   },
   armchair: (g, _w, _h, ctx) => {
+    if (place(g, 'armchair', { h: 0.78 }, 0.5, 0, 0.5, dirYaw(ctx.variant))) return;
     const c = new THREE.Group();
     c.position.set(0.5, 0, 0.5);
     c.rotation.y = dirYaw(ctx.variant);
@@ -374,6 +426,11 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     g.add(c);
   },
   coffee_table: (g, w) => {
+    if (place(g, 'lowTable', { w: w - 0.35 }, w / 2, 0, 0.5)) {
+      place(g, 'bookSet', { h: 0.12 }, w / 2 - 0.2, 0.2, 0.5, 0.4);
+      mug(g, w / 2 + 0.25, 0.2, 0.45, PAL.mustard);
+      return;
+    }
     block(g, w - 0.3, 0.05, 0.6, PAL.oak, w / 2, 0.24, 0.5, 0.03);
     block(g, w - 0.4, 0.03, 0.5, PAL.woodDark, w / 2, 0.08, 0.5, 0.02);
     for (const x of [0.25, w - 0.25]) for (const z of [0.27, 0.73]) put(g, cyl(0.025, 0.025, 0.24, 8), mat(PAL.woodDark), x, 0, z);
@@ -414,10 +471,13 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.06, 1.3, h - 0.1, panel, 0.05, 0.08, h / 2, 0.02);
     block(g, 0.06, 1.3, h - 0.1, panel, w - 0.05, 0.08, h / 2, 0.02);
     block(g, w - 0.6, 1.2, 0.05, panel, w / 2 + 0.25, 0.1, h - 0.05, 0.02);
-    put(g, cyl(0.16, 0.13, 0.3, 16), mat(PAL.white, { rough: 0.3 }), w / 2, 0, 0.5);
-    block(g, 0.36, 0.34, 0.14, PAL.white, w / 2, 0.2, 0.18, 0.04);
+    if (!place(g, 'toilet', { h: 0.5 }, w / 2, 0, 0.4)) {
+      put(g, cyl(0.16, 0.13, 0.3, 16), mat(PAL.white, { rough: 0.3 }), w / 2, 0, 0.5);
+      block(g, 0.36, 0.34, 0.14, PAL.white, w / 2, 0.2, 0.18, 0.04);
+    }
   },
   sink: (g) => {
+    if (place(g, 'bathroomSink', { h: 0.75 }, 0.5, 0, 0.32)) return;
     block(g, 0.7, 0.55, 0.5, PAL.woodLight, 0.5, 0, 0.35, 0.03);
     put(g, cyl(0.2, 0.15, 0.08, 18), mat(PAL.white, { rough: 0.25 }), 0.5, 0.55, 0.38);
     put(g, cyl(0.015, 0.015, 0.16, 8), mat(PAL.metal, { metal: 0.8, rough: 0.2 }), 0.5, 0.55, 0.16);
@@ -465,7 +525,9 @@ function deskModel(g: THREE.Group, ctx: FurnitureCtx, hooks: FurnitureHooks, fac
     const p = block(g, 0.22, 0.02, 0.3, PAL.paper, faceSouth ? 0.4 : 1.6, DESK_H, 0.5, 0.004);
     p.rotation.y = (rnd() - 0.5) * 0.6;
   }
-  if (rnd() < 0.45) foliage(g, faceSouth ? 0.2 : 1.8, DESK_H, zBack, 0.07, PAL.leaf, ctx.seed + 3, 3);
+  if (rnd() < 0.45) {
+    if (!place(g, pick<PropName>(['plantSmall1', 'plantSmall2', 'plantSmall3'], ctx.seed), { h: 0.2 }, faceSouth ? 0.2 : 1.8, DESK_H, zBack)) foliage(g, faceSouth ? 0.2 : 1.8, DESK_H, zBack, 0.07, PAL.leaf, ctx.seed + 3, 3);
+  }
   else if (rnd() < 0.5) put(g, cyl(0.035, 0.02, 0.2, 8), mat(PAL.mustard), faceSouth ? 0.22 : 1.78, DESK_H, zBack);
 }
 
@@ -558,19 +620,79 @@ const WALL: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.1, 0.14, 0.02, PAL.white, 0, 0.75, 0.01, 0.01);
   },
   elevator: (g, w, _h, _ctx, hooks) => {
-    block(g, w - 0.1, 1.95, 0.08, PAL.metal, 0, 0, 0.0, 0.02).material = mat(PAL.metal, { metal: 0.6, rough: 0.35 });
-    const door = mat('#b7bcc2', { metal: 0.75, rough: 0.28 });
+    const steel = mat('#9aa3ad', { metal: 0.7, rough: 0.32 });
+    const dark = mat('#4a5059', { metal: 0.6, rough: 0.4 });
+    // moldura (batentes e verga) saliente da parede
+    block(g, 0.16, 1.86, 0.14, steel, -0.76, 0, 0.0, 0.03);
+    block(g, 0.16, 1.86, 0.14, steel, 0.76, 0, 0.0, 0.03);
+    block(g, 1.68, 0.2, 0.14, steel, 0, 1.72, 0.0, 0.03);
+    // soleira
+    block(g, 1.4, 0.02, 0.16, dark, 0, 0, 0.06, 0.005);
+    // cabine iluminada (pintada: profundidade sem atravessar a parede), vista quando as portas abrem
+    put(g, plane(1.36, 1.66), texMat('elevator:cab', 128, 160, (c, cw, ch) => {
+      const gr = c.createLinearGradient(0, 0, 0, ch);
+      gr.addColorStop(0, '#fff3dc');
+      gr.addColorStop(1, '#c9a77c');
+      c.fillStyle = gr;
+      c.fillRect(0, 0, cw, ch);
+      // painéis de madeira, corrimão, espelho e piso em perspectiva
+      c.fillStyle = 'rgba(120,80,45,0.35)';
+      for (let x = 18; x < cw; x += 30) c.fillRect(x, 26, 2, ch - 60);
+      c.fillStyle = 'rgba(210,235,245,0.75)';
+      c.fillRect(34, 30, cw - 68, 56);
+      c.fillStyle = '#b8bfc6';
+      c.fillRect(10, 98, cw - 20, 5);
+      c.fillStyle = '#6d5a48';
+      c.beginPath();
+      c.moveTo(0, ch);
+      c.lineTo(22, ch - 34);
+      c.lineTo(cw - 22, ch - 34);
+      c.lineTo(cw, ch);
+      c.fill();
+      c.fillStyle = 'rgba(255,240,200,0.9)';
+      c.fillRect(20, 6, cw - 40, 8);
+    }, 1.0), 0, 0.84, 0.015, { shadow: false });
+    // portas de aço escovado com friso
+    const doorTex = texMat('elevator:door', 64, 160, (c, cw, ch) => {
+      const gr = c.createLinearGradient(0, 0, cw, 0);
+      gr.addColorStop(0, '#aab2bb');
+      gr.addColorStop(0.45, '#d9dee3');
+      gr.addColorStop(1, '#9ea6af');
+      c.fillStyle = gr;
+      c.fillRect(0, 0, cw, ch);
+      c.fillStyle = 'rgba(255,255,255,0.08)';
+      for (let y = 0; y < ch; y += 3) c.fillRect(0, y, cw, 1);
+      c.fillStyle = 'rgba(60,66,74,0.5)';
+      c.fillRect(0, ch * 0.55, cw, 2);
+    }, 0.55);
     const l = new THREE.Group();
     const r = new THREE.Group();
-    block(l, 0.66, 1.62, 0.03, door, 0, 0, 0, 0.005);
-    block(r, 0.66, 1.62, 0.03, door, 0, 0, 0, 0.005);
+    put(l, plane(0.68, 1.66), doorTex, 0, 0.83, 0, { shadow: false });
+    put(r, plane(0.68, 1.66), doorTex, 0, 0.83, 0, { shadow: false });
+    block(l, 0.68, 1.66, 0.02, steel, 0, 0, -0.012, 0.004);
+    block(r, 0.68, 1.66, 0.02, steel, 0, 0, -0.012, 0.004);
     l.userData.dynamic = r.userData.dynamic = true;
-    l.position.set(-0.34, 0.06, 0.05);
-    r.position.set(0.34, 0.06, 0.05);
+    l.position.set(-0.34, 0.01, 0.05);
+    r.position.set(0.34, 0.01, 0.05);
     g.add(l, r);
-    block(g, 1.3, 1.6, 0.02, '#2c3036', 0, 0.07, 0.02, 0.005);
-    put(g, sphere(0.035, 10), mat('#ffc66b', { emissive: '#ffb340', emissiveIntensity: 1.4 }), 0.82, 0.95, 0.06);
-    block(g, 0.4, 0.1, 0.02, PAL.charcoal, 0, 1.78, 0.05, 0.01);
+    // mostrador do andar sobre a porta e botoeira ao lado
+    put(g, plane(0.42, 0.13), texMat('elevator:display', 84, 26, (c, cw, ch) => {
+      c.fillStyle = '#12151c';
+      c.fillRect(0, 0, cw, ch);
+      c.fillStyle = '#ffb340';
+      c.beginPath();
+      c.moveTo(18, 6);
+      c.lineTo(26, 19);
+      c.lineTo(10, 19);
+      c.fill();
+      c.font = 'bold 18px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('T', 54, 14);
+    }, 1.6), 0, 1.82, 0.075, { shadow: false });
+    block(g, 0.13, 0.3, 0.03, dark, 0.98, 0.82, 0.02, 0.012);
+    put(g, sphere(0.03, 12), mat('#ffc66b', { emissive: '#ffb340', emissiveIntensity: 1.6 }), 0.98, 1.02, 0.055, { shadow: false });
+    put(g, sphere(0.03, 12), mat('#dfe5ea', { metal: 0.6, rough: 0.3 }), 0.98, 0.9, 0.055, { shadow: false });
     hooks.doors = [l, r];
   },
   door_frame: (g, w) => {

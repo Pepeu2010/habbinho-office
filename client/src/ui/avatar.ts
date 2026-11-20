@@ -1,14 +1,20 @@
-// Avatares dos agentes para a UI: gerados pelo módulo de arte uma única vez e reaproveitados como data URL.
+// Avatares dos agentes para a UI: o busto do personagem 3D quando o mundo 3D oferece retratos (../portraits.ts) e, sem
+// ele, o busto em pixel art do módulo de arte. Gerados uma única vez e reaproveitados como data URL.
 import { partsKey } from '../../../shared/appearance';
 import type { AgentInfo } from '../../../shared/types';
 import { avatarCanvas } from '../art';
+import { onPortraits, portrait } from '../portraits';
 import { h } from './dom';
 
 const cache = new Map<string, { url: string; w: number; h: number }>();
 
 type AvatarSource = Pick<AgentInfo, 'seed' | 'look' | 'kind' | 'parts'>;
 
-function avatarData(agent: AvatarSource, scale: number): { url: string; w: number; h: number } {
+/** Lado do busto em px para cada tamanho (o pixel art tem 20 px de lado vezes a escala). */
+function avatarData(agent: AvatarSource, scale: number): { url: string; w: number; h: number; is3d?: boolean } {
+  const px = 20 * scale;
+  const url3d = portrait({ seed: agent.seed, look: agent.look, sub: agent.kind === 'sub', parts: agent.parts, px });
+  if (url3d) return { url: url3d, w: px, h: px, is3d: true };
   const key = `${agent.seed}|${agent.look}|${agent.kind}|${scale}|${partsKey(agent.parts)}`;
   let entry = cache.get(key);
   if (!entry) {
@@ -37,7 +43,22 @@ export function createAvatarPlaceholder(size: AvatarSize): HTMLElement {
 }
 
 /** Atualiza o avatar só se a aparência (semente, look, peças) mudou. */
+const boxes = new Map<HTMLElement, { agent: AvatarSource; size: AvatarSize }>();
+
+// retratos 3D ficaram prontos (ou o mundo mudou): refaz os avatares na tela
+onPortraits(() => {
+  for (const [box, v] of boxes) {
+    if (!box.isConnected) {
+      boxes.delete(box);
+      continue;
+    }
+    delete box.dataset.sig;
+    updateAvatar(box, v.agent, v.size);
+  }
+});
+
 export function updateAvatar(box: HTMLElement, agent: AvatarSource, size: AvatarSize): void {
+  boxes.set(box, { agent, size });
   const sig = `${agent.seed}|${agent.look}|${agent.kind}|${partsKey(agent.parts)}`;
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
@@ -51,6 +72,7 @@ export function updateAvatar(box: HTMLElement, agent: AvatarSource, size: Avatar
     img.width = data.w;
     img.height = data.h;
     img.src = data.url;
+    box.classList.toggle('is-3d', !!data.is3d);
   } catch (err) {
     // A arte ainda pode estar em construção; a moldura vazia continua legível.
     console.warn('[ui] falha ao gerar avatar', err);

@@ -21,6 +21,10 @@ import { NpcCrowd, type NpcLevel } from './npcs';
 import { Labels } from './labels';
 import { LookStore } from './looks';
 import { createLookEditor } from './editor';
+import { loadProps } from './props';
+import { Portraits3D } from './portraits3d';
+import { setPortraitProvider } from '../portraits';
+import { appearanceFromSeed } from '../art';
 import { screenModeFor } from './screens';
 import { loadQuality, saveQuality, Stage, type Quality } from './stage';
 
@@ -49,9 +53,14 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const cam = new StrategicCamera(stage.camera);
   let sim = new Sim(art, () => options);
   const assets = new CharacterAssets();
+  // bustos do Habbinho para a lista, a gaveta e o feed
+  const portraits = new Portraits3D(assets);
+  setPortraitProvider((r) => portraits.get(r));
   const looks = new LookStore();
   const building = new Building3D(null);
   stage.scene.add(building.root);
+  // móveis prontos (CC0): enquanto carregam, as salas usam os procedurais; ao chegar, refaz tudo
+  void loadProps().then(() => building.invalidate());
   const fx = new Fx();
   stage.scene.add(fx.mesh);
   // reações do corpo (concluiu/erro) ganham partículas sobre a cabeça
@@ -593,6 +602,8 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       abort.abort();
       offSnapshot();
       labels.destroy();
+      setPortraitProvider(null);
+      portraits.dispose();
       avatars.dispose();
       npcs.clear();
       npcAvatars.dispose();
@@ -605,8 +616,9 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       soundCbs.clear();
     },
     lookEditor: (id) => {
-      const info = sim.chars.get(id)?.info ?? store.snapshot?.agents.find((a) => a.id === id);
-      return info ? createLookEditor(info, assets, looks) : null;
+      const ch = sim.chars.get(id);
+      const info = ch?.info ?? store.snapshot?.agents.find((a) => a.id === id);
+      return info ? createLookEditor(info, assets, looks, ch?.appearance ?? appearanceFromSeed(info.seed, { look: info.look })) : null;
     },
     getNpcLevel: () => npcLevel,
     setNpcLevel: (l) => {

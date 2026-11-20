@@ -2,6 +2,8 @@
 // Implementação: client/src/world/index.ts -> createWorld().
 // Regra: mudanças aqui devem ser ADITIVAS.
 
+import type { Appearance } from '../art/api';
+
 export type Selection = { type: 'agent'; id: string } | { type: 'room'; id: string } | null;
 
 export interface WorldOptions {
@@ -120,6 +122,8 @@ export interface LookEditorHandle {
   reset(): void;
   /** Fecha sem gravar e libera a prévia. */
   dispose(): void;
+  /** (Opcional, aditivo) Mostra na prévia a aparência em edição (campos do editor da gaveta). */
+  preview?(a: Appearance): void;
 }
 
 /** Quantos visitantes decorativos (NPCs) circulam no escritório 3D. */

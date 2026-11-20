@@ -2219,7 +2219,6 @@ export const EN: Readonly<Record<string, string>> = {
   "[mod] Erro inesperado: {0}": "[mod] Unexpected error: {0}",
 
   // scripts/statusline-install.ts
-  "Uso: npm run usage:<install|uninstall|status> [-- opções]\n\n  install     envolve o statusline de cada conta com o tap do Habblaud (faz backup do settings.json)\n  uninstall   restaura o statusline original de cada conta\n  status      mostra se o tap está instalado e quando chegou o último uso de cada conta\n\nOpções:\n  --dry-run        mostra o que mudaria, sem gravar nada\n  --node <cmd>     comando do node usado no statusline (padrão: detectado no PATH)\n  -h, --help       mostra esta ajuda\n\nContas: as mesmas do servidor (~/.claude* com projects/ ou sessions/, CLAUDE_CONFIG_DIR ou\nHABBLAUD_CLAUDE_DIRS). Uso capturado em HABBLAUD_USAGE_DIR (padrão ~/.habblaud/usage).": "Usage: npm run usage:<install|uninstall|status> [-- options]\n\n  install     wraps each account's statusline with the Habblaud tap (backs up settings.json)\n  uninstall   restores each account's original statusline\n  status      shows whether the tap is installed and when each account's last usage arrived\n\nOptions:\n  --dry-run        shows what would change, without writing anything\n  --node <cmd>     node command used in the statusline (default: detected in PATH)\n  -h, --help       shows this help\n\nAccounts: the same as the server's (~/.claude* with projects/ or sessions/, CLAUDE_CONFIG_DIR or\nHABBLAUD_CLAUDE_DIRS). Usage captured in HABBLAUD_USAGE_DIR (default ~/.habblaud/usage).",
   "statusLine em formato desconhecido; nada foi alterado": "statusLine in an unknown format; nothing was changed",
   "sem statusline antes: criado um que só captura o uso (não imprime nada)": "no statusline before: created one that only captures usage (prints nothing)",
   "statusLine do tipo \"{0}\" não é suportado; nada foi alterado": "statusLine of type \"{0}\" isn't supported; nothing was changed",
@@ -2534,7 +2533,6 @@ export const EN: Readonly<Record<string, string>> = {
   "[remote-mdns] anunciando {0}.local -> {1}": "[remote-mdns] announcing {0}.local -> {1}",
 
   // scripts/remote-setup.ts
-  "Uso: npm run remote:setup [-- opções]\n\nLiga o acesso pelo celular (https://<nome>.local) com usuário, senha e HTTPS.\n\n  --user <nome>        usuário do login (padrão: o seu usuário do sistema)\n  --name <nome>        endereço <nome>.local (padrão: habblaud)\n  --domain <endereço>  endereço próprio, ex.: meuclaude.home (precisa de uma entrada no DNS do roteador)\n  --port <n>           porta no computador (padrão: 443 se estiver livre, senão 4748)\n  --allow <lista>      o que o celular pode fazer: permissions, messages, terminal, spawn, none (padrão: permissions)\n  --password-stdin     lê a senha da entrada padrão (automação), em vez de perguntar\n  --no-service         não instala o serviço do anúncio <nome>.local (rode npm run remote:mdns você mesmo)\n  --off                desliga o acesso pelo celular (tira as linhas do .env e o serviço; mantém a CA)": "Usage: npm run remote:setup [-- options]\n\nTurns on phone access (https://<name>.local) with username, password and HTTPS.\n\n  --user <name>        login username (default: your system username)\n  --name <name>        address <name>.local (default: habblaud)\n  --domain <address>   own address, e.g. myclaude.home (needs an entry in the router's DNS)\n  --port <n>           port on the computer (default: 443 if free, otherwise 4748)\n  --allow <list>       what the phone can do: permissions, messages, terminal, spawn, none (default: permissions)\n  --password-stdin     reads the password from standard input (automation) instead of asking\n  --no-service         doesn't install the <name>.local announcement service (run npm run remote:mdns yourself)\n  --off                turns off phone access (removes the lines from .env and the service; keeps the CA)",
   "falta o valor de {0}": "missing value for {0}",
   "opção desconhecida: {0}": "unknown option: {0}",
   "porta inválida": "invalid port",
@@ -3275,18 +3273,6 @@ export const EN: Readonly<Record<string, string>> = {
   "O carimbo não foi deixado. Tente de novo.": "The stamp wasn't left. Try again.",
 
   // client/src/world3d (escritório 3D) e client/src/ui/settings.ts (Visual)
-  "Engenheiro de TI": "IT engineer",
-  "Contadora": "Accountant",
-  "Diretor": "Director",
-  "Estagiária": "Intern",
-  "Gerente": "Manager",
-  "Recepcionista": "Receptionist",
-  "Vendedor": "Sales rep",
-  "Segurança": "Security guard",
-  "Analista": "Analyst",
-  "Desenvolvedor": "Developer",
-  "Coordenadora": "Coordinator",
-  "Pesquisador": "Researcher",
   "Visual": "Visuals",
   "Visão do escritório": "Office view",
   "3D": "3D",
@@ -3304,20 +3290,11 @@ export const EN: Readonly<Record<string, string>> = {
   "Digitando": "Typing",
   "Comemorando": "Celebrating",
   "Acenando": "Waving",
-  "Roupa": "Clothes",
-  "Calça/saia": "Pants/skirt",
-  "Calçados": "Shoes",
-  "Aparência 3D": "3D look",
   "Prévia 3D do personagem: arraste para girar, role para aproximar": "3D character preview: drag to rotate, scroll to zoom",
   "Arraste para girar · role para aproximar": "Drag to rotate · scroll to zoom",
-  "Personagem-base": "Base character",
   "Animação de prévia": "Preview animation",
-  "Cores": "Colors",
-  "Cor do acessório": "Accessory color",
   "Identificação profissional": "Job title",
   "Ex.: Revisora de código": "E.g.: Code reviewer",
-  "Restaurar padrão 3D": "Restore 3D default",
-  "Aparência 2D (pixel art e Habblaud World)": "2D look (pixel art and Habblaud World)",
   // client/src/world/layout/core.ts (biblioteca e sala de reuniões)
   "Biblioteca": "Library",
   "Sala de reuniões": "Meeting room",
@@ -3385,4 +3362,8 @@ export const EN: Readonly<Record<string, string>> = {
   "Poucos": "A few",
   "Visitantes": "Visitors",
   "Personagens decorativos que circulam pelas áreas comuns. Não são agentes: não contam em nada e não podem ser selecionados.": "Decorative characters who wander the common areas. They are not agents: they count for nothing and cannot be selected.",
+  // client/src/world3d (Habbinho, prévia 3D) e ui/character-editor.ts
+  "Aparência (vale para o 3D, o 2D e o Habblaud World)": "Appearance (applies to 3D, 2D and Habblaud World)",
+  "Habbinho": "Habbinho",
+  "Prévia 3D": "3D preview",
 };

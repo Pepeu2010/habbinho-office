@@ -7,7 +7,10 @@ import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/500.css';
 import '@fontsource/pixelify-sans/600.css';
 import '@fontsource/pixelify-sans/700.css';
+import '@fontsource-variable/fredoka';
+import '@fontsource-variable/nunito';
 import './styles.css';
+import './theme.css';
 
 import type { OfficeStore } from '../net/store';
 import type { Selection, WorldApi } from '../world/api';

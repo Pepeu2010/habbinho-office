@@ -12,15 +12,22 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
-- **Escritório 3D.** O escritório ganhou uma visão tridimensional com bonecos chibi animados (pacotes Gobkit, CC0):
-  os mesmos agentes, salas, caminhos e vida social do 2D, desenhados em 3D. Cada personagem senta, digita, conversa,
+- **Escritório 3D.** O escritório ganhou uma visão tridimensional com o **Habbinho**, um boneco chibi criado para o
+  Habblaud e montado a partir da aparência de cada agente (a mesma do 2D: 14 penteados, 7 roupas, calça, short ou saia,
+  barba, acessórios e crachá), com rosto expressivo que pisca, sorri, se preocupa e cochila. Os móveis vêm de pacotes
+  CC0 (Kenney Furniture Kit e KayKit Furniture Bits): cadeiras de escritório, monitores, sofás, poltronas, plantas,
+  cafeteira, geladeira e banheiro; o elevador abre mostrando a cabine iluminada. Os mesmos agentes, salas, caminhos e vida social do 2D, desenhados em 3D. Cada personagem senta, digita, conversa,
   comemora e anda pelo prédio conforme o que o agente está fazendo de verdade, e o monitor da mesa mostra o tipo de
   trabalho (código, terminal, documentação, navegador). Câmera com giro, zoom e foco no agente; paredes da frente
   abaixam sozinhas. Em **Configurações › Visual** dá para voltar ao 2D (pixel art) e escolher a qualidade gráfica
   (Baixa, Média, Alta, Ultra). Sem WebGL2, o Habblaud abre no 2D. Detalhes em [docs/3d.md](docs/3d.md).
-- **Editor de personagem 3D.** No lápis do agente, com o escritório em 3D: prévia girável com animação, 12 bonecos
-  para escolher, cores de cabelo, pele, roupa e calçados, acessórios (óculos, boné, gorro, fone, laço) e uma
-  identificação profissional que aparece sob o nome. Fica guardado neste navegador.
+- **Prévia 3D no editor de personagem.** No lápis do agente, com o escritório em 3D: o Habbinho aparece girando e
+  muda na hora a cada escolha de pele, cabelo, roupa, acessório ou barba (a mesma aparência vale para o 3D, o 2D e o
+  Habblaud World), com animações de exemplo e uma identificação profissional que aparece sob o nome.
+- **Interface nova.** Os painéis flutuam sobre o escritório em vidro índigo com cantos arredondados, a barra do topo
+  virou ilhas separadas (marca, resumo, contas e ferramentas), o texto usa fontes arredondadas (Fredoka e Nunito) e
+  os status têm cores próprias (menta trabalhando, girassol quando precisa de você). A lista de salas não ocupa mais a
+  altura toda da tela, e no 3D os avatares da lista, da gaveta e do feed são retratos do próprio Habbinho.
 - **Biblioteca e sala de reuniões.** O núcleo do prédio ganhou uma terceira coluna, no 2D e no 3D: a biblioteca
   (estantes para ler em pé, sofá, poltronas e mesa de estudo) e a sala de reuniões (mesa grande, quadro e TV). Quem está
   à toa passa a usá-las para ler, descansar e conversar. As salas de projeto começam uma coluna mais à direita.

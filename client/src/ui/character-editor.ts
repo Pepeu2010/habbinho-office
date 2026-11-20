@@ -32,7 +32,7 @@ export class CharacterEditor {
   private look: 'f' | 'm' = 'f';
   /** Aparência sorteada pela seed (sem peças): o que não mudar não vai em `parts`. */
   private base: Appearance | null = null;
-  private readonly fields = new AppearanceFields();
+  private readonly fields = new AppearanceFields((a) => this.look3d?.preview?.(a));
   private readonly nameInput: HTMLInputElement;
   private readonly error: HTMLElement;
   private readonly saveBtn: HTMLButtonElement;
@@ -64,7 +64,7 @@ export class CharacterEditor {
       ),
       h('p', { class: 'ui-muted ui-small', text: tr('Vale para o projeto: a próxima sessão nesta sala chega com este personagem.') }),
       (this.slot3d = h('div', { class: 'ui-char__3d' })),
-      (this.title2d = h('h3', { class: 'ui-char__title2d', hidden: true, text: tr('Aparência 2D (pixel art e Habblaud World)') })),
+      (this.title2d = h('h3', { class: 'ui-char__title2d', hidden: true, text: tr('Aparência (vale para o 3D, o 2D e o Habblaud World)') })),
       this.fields.groups,
       this.error,
       h('div', { class: 'ui-char__actions' }, this.saveBtn, cancel, this.resetBtn),
@@ -114,6 +114,8 @@ export class CharacterEditor {
     this.look3d?.dispose();
     this.look3d = this.ctx.world?.lookEditor?.(a.id) ?? null;
     if (this.look3d) this.slot3d.append(this.look3d.el);
+    const draft = this.fields.value;
+    if (draft) this.look3d?.preview?.(draft);
     setHidden(this.title2d, !this.look3d);
     this.nameInput.focus();
     this.nameInput.select();
@@ -140,6 +142,8 @@ export class CharacterEditor {
     this.seed = randomSeed();
     this.base = appearanceFromSeed(this.seed, { look: this.look });
     this.fields.set({ ...this.base });
+    const draft = this.fields.value;
+    if (draft) this.look3d?.preview?.(draft);
   }
 
   private async save(): Promise<void> {

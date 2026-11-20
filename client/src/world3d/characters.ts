@@ -8,11 +8,11 @@ import type { Character } from '../world/sim/character';
 import type { Sim } from '../world/sim/sim';
 import type { SpotKind } from '../world/layout/types';
 import { REACTION_MS, clipForPose, reactionClip, reactionForIcon, resolveClip, type Reaction } from './anim-map';
-import { BONE, CHAR_H, defaultModelFor, modelById, type CharacterAssets, type CharacterModelDef, type LoadedModel } from './assets';
+import { BONE, CHAR_H, defaultModelFor, type CharacterAssets, type CharacterModelDef, type LoadedModel } from './assets';
 import { SEAT_H, STOOL_H } from './furniture';
 import { PAL, cyl, mat, rbox, sphere } from './kit';
-import { attachToHead, buildAccessory } from './accessories';
-import { applyLook, type Look, type LookStore } from './looks';
+import { ChibiFace, chibiKey, chibiMaterials, dressChibi, type Expression } from './chibi';
+import type { LookStore } from './looks';
 
 /** Altura do assento por tipo de lugar (topo da almofada). */
 function seatHeight(kind: SpotKind | undefined): number {
@@ -66,6 +66,9 @@ class Avatar implements AvatarView {
   private heldKind: HeldItem = 'none';
   private heldObj: THREE.Object3D | null = null;
   private materials: THREE.MeshStandardMaterial[] = [];
+  private face: ChibiFace | null = null;
+  private faceMat: THREE.Material | null = null;
+  private rnd = Math.random;
   private loading = false;
   readonly ring: THREE.Mesh;
   private shadowBlob: THREE.Mesh;
@@ -74,7 +77,6 @@ class Avatar implements AvatarView {
   private reaction: { kind: Reaction; t0: number } | null = null;
   /** Chamado quando uma reação começa (efeitos de partícula sobre a cabeça). */
   onReact?: (kind: Reaction, head: THREE.Vector3) => void;
-  private accessory: THREE.Object3D | null = null;
   /** Identificação profissional escolhida no editor (etiqueta). */
   badge = '';
 
@@ -109,32 +111,29 @@ class Avatar implements AvatarView {
       this.root.remove(this.body);
       this.mixer?.stopAllAction();
       for (const m of this.materials) m.dispose();
+      this.face?.dispose();
     }
     assets.refreshClips(model);
     this.model = model;
     this.modelId = model.def.id;
     this.lookKey = '';
     const body = assets.instantiate(model);
-    this.materials = [];
-    body.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        const own = (m.material as THREE.MeshStandardMaterial).clone();
-        m.material = own;
-        this.materials.push(own);
-      }
-    });
+    // o visual é o Habbinho (vestido em update(), quando a aparência é conhecida)
+    this.face = new ChibiFace();
+    const mats = chibiMaterials(this.face);
+    this.materials = [mats.body, mats.face];
+    this.faceMat = mats.face;
     this.body = body;
     this.root.add(body);
     this.headBone = body.getObjectByName(model.bones[BONE.head] ?? '') ?? null;
-    this.handBone = body.getObjectByName(model.bones[BONE.handR] ?? '') ?? null;
+    // o objeto segurado vai no osso do braço, na mão visível do Habbinho (braço modelado mais baixo que o osso)
+    this.handBone = body.getObjectByName(model.bones[BONE.armR] ?? '') ?? null;
     this.mixer = new THREE.AnimationMixer(body);
     this.actions.clear();
     this.current = null;
     this.sitHips = this.measureSitHips();
     this.heldKind = 'none';
     this.heldObj = null;
-    this.accessory = null;
   }
 
   /** Altura do quadril (acima dos pés) na pose sentada: posiciona o boneco sobre cada assento. */
@@ -226,11 +225,12 @@ class Avatar implements AvatarView {
     this.shadowBlob.visible = !ch.seated;
     if (!this.body || !this.mixer || !this.model) return;
 
-    // aparência escolhida no editor (cores do atlas e modelo)
-    const look = looks.get(ch.id, ch.info);
-    if (look.key !== this.lookKey) {
-      this.lookKey = look.key;
-      this.applyLookNow(look);
+    // aparência do agente (a mesma do 2D) e identificação escolhida no editor 3D
+    this.badge = looks.get(ch.id, ch.info).badge ?? '';
+    const lk = chibiKey(ch.appearance);
+    if (lk !== this.lookKey) {
+      this.lookKey = lk;
+      dressChibi(this.body, this.model.rig, ch.appearance, { body: this.materials[0]!, face: this.materials[1]! });
     }
 
     // animação
@@ -269,10 +269,13 @@ class Avatar implements AvatarView {
       else if (this.headBone) this.headBone.rotateX(-Math.sin(t * Math.PI * 2) * 0.3 * k);
     } else this.body.position.y = 0;
 
+    // expressão do rosto
+    this.face?.update(expressionFor(ch.pose, this.reaction?.kind, ch.mode), now, this.rnd);
+
     // alpha (chegada/saída)
     const alpha = THREE.MathUtils.clamp(ch.alpha, 0, 1);
     for (const m of this.materials) {
-      const tr = alpha < 0.999;
+      const tr = alpha < 0.999 || m === this.faceMat;
       if (m.transparent !== tr) {
         m.transparent = tr;
         m.needsUpdate = true;
@@ -296,17 +299,6 @@ class Avatar implements AvatarView {
     } else this.head.set(this.pos.x, CHAR_H + 0.2, this.pos.z);
   }
 
-  /** Atlas recolorido, acessório na cabeça e identificação. */
-  applyLookNow(look: Look): void {
-    if (!this.model) return;
-    applyLook(this.materials, this.model, look);
-    this.accessory?.parent?.remove(this.accessory);
-    this.accessory = null;
-    const acc = look.accessory ? buildAccessory(look.accessory, this.model.head, look.accessoryColor) : null;
-    if (acc && this.headBone) this.accessory = attachToHead(this.headBone, acc, this.model.head, this.model.scale);
-    this.badge = look.badge ?? '';
-  }
-
   private syncHeld(kind: HeldItem): void {
     if (kind === this.heldKind) return;
     this.heldKind = kind;
@@ -324,6 +316,7 @@ class Avatar implements AvatarView {
     this.handBone.updateWorldMatrix(true, false);
     this.handBone.getWorldScale(s);
     holder.scale.setScalar(1 / Math.max(1e-6, s.x));
+    holder.position.copy(this.model.rig.handR);
     this.handBone.add(holder);
     this.heldObj = holder;
   }
@@ -340,6 +333,7 @@ class Avatar implements AvatarView {
   dispose(): void {
     this.mixer?.stopAllAction();
     for (const m of this.materials) m.dispose();
+    this.face?.dispose();
     (this.ring.material as THREE.Material).dispose();
     this.ring.geometry.dispose();
     this.shadowBlob.geometry.dispose();
@@ -465,9 +459,7 @@ export class Avatars {
         this.list.set(ch.id, a);
         this.group.add(a.root);
       }
-      const look = this.looks.get(ch.id, ch.info);
-      const def = modelById(look.model) ?? defaultModelFor(ch.info.seed, ch.info.look);
-      void a.ensureModel(this.assets, def);
+      void a.ensureModel(this.assets, defaultModelFor());
       a.update(ch, sim, dt, now, this.looks);
       const status = ch.mode === 'wait' ? PAL.orange : null;
       if (ch.id === selected) a.setRing('#ffffff', 0.95);
@@ -484,5 +476,32 @@ export class Avatars {
     for (const a of this.list.values()) a.dispose();
     this.list.clear();
     this.group.clear();
+  }
+}
+
+/** Expressão do Habbinho pela pose e pelas reações. */
+export function expressionFor(pose: string, reaction: Reaction | undefined, status?: string): Expression {
+  if (reaction === 'celebrate') return 'happy';
+  if (reaction === 'oops') return 'worried';
+  if (reaction === 'attention') return 'surprised';
+  switch (pose) {
+    case 'sleep':
+      return 'sleep';
+    case 'talk':
+    case 'rps':
+      return 'talk';
+    case 'cheer':
+    case 'laugh':
+    case 'play':
+    case 'game':
+      return 'happy';
+    case 'type':
+    case 'read':
+      return 'focused';
+    case 'wait':
+    case 'raise_hand':
+      return status === 'wait' ? 'worried' : 'neutral';
+    default:
+      return 'neutral';
   }
 }

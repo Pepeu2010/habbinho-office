@@ -1,0 +1,25 @@
+<!doctype html><html><body style="margin:0;background:#cfd8e3"><canvas id=c></canvas><script type="module">
+import * as THREE from 'three';
+import { CharacterAssets, defaultModelFor } from '/src/world3d/assets.ts';
+import { dressChibi, chibiMaterials, ChibiFace } from '/src/world3d/chibi.ts';
+import { appearanceFromSeed } from '/src/art/index.ts';
+const q = new URLSearchParams(location.search);
+const clipName = q.get('clip') ?? 'Idle', yaw = +(q.get('yaw') ?? 0), expr = q.get('expr') ?? 'neutral';
+const W = 1800, H = 700;
+const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NeutralToneMapping;
+const s = new THREE.Scene(); s.background = new THREE.Color('#dfe6ee');
+s.add(new THREE.HemisphereLight('#f6f2ff', '#8a7a66', 1.6)); const k = new THREE.DirectionalLight('#fff1dc', 2.4); k.position.set(2, 4, 3); s.add(k);
+const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 100); cam.position.set(0, 1.1, 9); cam.lookAt(0, 0.55, 0);
+const assets = new CharacterAssets(); const m = await assets.load(defaultModelFor());
+await new Promise(r => setTimeout(r, 1500)); assets.refreshClips(m);
+const seeds = (q.get('seeds') ?? '1,2,3,4,5,6,7,8,9,10').split(',').map(Number);
+const mixers = [];
+seeds.forEach((seed, i) => {
+  const a = appearanceFromSeed(seed, { look: i % 2 ? 'f' : 'm', sub: i === 3 });
+  const b = assets.instantiate(m); const f = new ChibiFace(); f.set(expr); dressChibi(b, m.rig, a, chibiMaterials(f));
+  b.position.x = (i - (seeds.length - 1) / 2) * 1.05; b.rotation.y = yaw; s.add(b);
+  const mx = new THREE.AnimationMixer(b); const clip = m.clips.get(clipName); if (clip) mx.clipAction(clip).play(); mx.update(0.4); mixers.push(mx);
+  const d = document.createElement('div'); d.textContent = `${seed} ${a.hairStyle} ${a.topStyle} ${a.bottomStyle ?? ''} ${a.accessory} ${a.facialHair ?? ''}`; d.style.cssText = `position:absolute;top:${H - 30}px;left:${(i + 0.1) * (W / seeds.length)}px;font:11px sans-serif;width:${W / seeds.length - 10}px`; document.body.append(d);
+});
+r.render(s, cam); document.title = 'done';
+</script></body></html>

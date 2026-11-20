@@ -1,46 +1,26 @@
-// Editor da aparência 3D, montado dentro do editor de personagem da gaveta (ui/character-editor.ts) quando o mundo é
-// 3D: prévia girável com animação, modelo-base, cores das regiões do atlas, acessório e identificação profissional.
-// O rascunho só vale ao salvar (LookStore, no navegador); "Restaurar padrão" volta ao boneco sorteado.
+// Prévia 3D do personagem dentro do editor de personagem da gaveta (ui/character-editor.ts), quando o mundo é 3D:
+// o Habbinho vestido com a aparência EM EDIÇÃO (cada escolha nos campos aparece na hora), girável, com animações e
+// expressões de exemplo, e a identificação profissional (só do 3D). O resto da aparência é salvo pelo editor da
+// gaveta no servidor e vale para o 2D e o 3D.
 import * as THREE from 'three';
 import type { AgentInfo } from '../../../shared/types';
 import { tr } from '../../../shared/i18n';
+import type { Appearance } from '../art/api';
 import type { LookEditorHandle } from '../world/api';
-import { attachToHead, buildAccessory, defaultAccessoryColor } from './accessories';
-import { CHARACTER_MODELS, defaultModelFor, modelById, type CharacterAssets, type LoadedModel } from './assets';
-import { ACCESSORIES_3D, BADGE_MAX, applyLook, atlasRegions, regionKind, toLook, type Accessory3D, type LookDraft, type LookStore, type RegionKind } from './looks';
+import { defaultModelFor, type CharacterAssets, type LoadedModel } from './assets';
+import { ChibiFace, chibiKey, chibiMaterials, dressChibi, type Expression } from './chibi';
+import { BADGE_MAX, type LookDraft, type LookStore } from './looks';
 import './editor.css';
 
-const PREVIEW_CLIPS: readonly [string, string][] = [
-  ['Idle', tr('Parado')],
-  ['Walk', tr('Andando')],
-  ['SitType', tr('Digitando')],
-  ['Talk', tr('Conversando')],
-  ['Think', tr('Pensando')],
-  ['Cheer', tr('Comemorando')],
-  ['Wave', tr('Acenando')],
+const PREVIEW_CLIPS: readonly [string, string, Expression][] = [
+  ['Idle', tr('Parado'), 'neutral'],
+  ['Walk', tr('Andando'), 'neutral'],
+  ['SitType', tr('Digitando'), 'focused'],
+  ['Talk', tr('Conversando'), 'talk'],
+  ['Think', tr('Pensando'), 'focused'],
+  ['Cheer', tr('Comemorando'), 'happy'],
+  ['Wave', tr('Acenando'), 'happy'],
 ];
-
-const ACCESSORY_LABELS: Record<Accessory3D, string> = {
-  none: tr('Nenhum'),
-  glasses: tr('Óculos'),
-  sunglasses: tr('Óculos escuros'),
-  cap: tr('Boné'),
-  beanie: tr('Gorro'),
-  headphones: tr('Fone'),
-  bow: tr('Laço'),
-};
-
-const REGION_LABELS: Record<RegionKind, string> = {
-  hair: tr('Cabelo'),
-  skin: tr('Pele'),
-  top: tr('Roupa'),
-  bottom: tr('Calça/saia'),
-  shoes: tr('Calçados'),
-  detail: tr('Detalhe'),
-};
-
-/** Quantas regiões de cor o editor mostra (as maiores; o resto são detalhes minúsculos). */
-const MAX_REGIONS = 7;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -49,76 +29,52 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
   return e;
 }
 
-function group(legend: string): { fs: HTMLFieldSetElement; body: HTMLDivElement } {
-  const fs = el('fieldset', 'ui-char__group');
-  fs.append(el('legend', '', legend));
-  const body = el('div', 'ui-char__opts');
-  fs.append(body);
-  return { fs, body };
-}
-
-function chip(text: string, onPick: () => void): HTMLButtonElement {
-  const b = el('button', 'ui-char__chip', text);
-  b.type = 'button';
-  b.setAttribute('role', 'radio');
-  b.setAttribute('aria-checked', 'false');
-  b.addEventListener('click', onPick);
-  return b;
-}
-
-function check(buttons: HTMLButtonElement[], on: number): void {
-  buttons.forEach((b, i) => b.setAttribute('aria-checked', String(i === on)));
-}
-
-export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks: LookStore): LookEditorHandle {
-  const stored = looks.get(info.id, info);
-  const fallback = defaultModelFor(info.seed, info.look);
-  let draft: LookDraft = { model: stored.model, colors: { ...stored.colors }, accessory: stored.accessory, accessoryColor: stored.accessoryColor, badge: stored.badge };
-  let clip = 'Idle';
+export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks: LookStore, appearance: Appearance): LookEditorHandle {
+  const draft: LookDraft = { badge: looks.get(info.id, info).badge };
+  let current = appearance;
+  let clip = 0;
   let disposed = false;
 
   const root = el('section', 'w3d-editor');
-  root.setAttribute('aria-label', tr('Aparência 3D'));
-  root.append(el('h3', 'w3d-editor__title', tr('Aparência 3D')));
+  root.setAttribute('aria-label', tr('Prévia 3D'));
 
-  // ---------------------------------------------------------------- prévia
+  const W = 260;
+  const HGT = 300;
   const canvas = el('canvas', 'w3d-editor__preview');
-  canvas.width = 240;
-  canvas.height = 260;
+  canvas.width = W;
+  canvas.height = HGT;
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', tr('Prévia 3D do personagem: arraste para girar, role para aproximar'));
   canvas.tabIndex = 0;
-  const hint = el('p', 'ui-muted ui-small', tr('Arraste para girar · role para aproximar'));
-  root.append(canvas, hint);
+  root.append(canvas);
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-  renderer.setSize(240, 260, false);
+  renderer.setSize(W, HGT, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NeutralToneMapping;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(28, 240 / 260, 0.1, 50);
-  scene.add(new THREE.HemisphereLight('#f6f2ff', '#8a7a66', 1.6));
+  const camera = new THREE.PerspectiveCamera(26, W / HGT, 0.1, 50);
+  scene.add(new THREE.HemisphereLight('#f6f2ff', '#8a7a66', 1.7));
   const key = new THREE.DirectionalLight('#fff1dc', 2.4);
   key.position.set(2, 4, 3);
   scene.add(key);
-  const rim = new THREE.DirectionalLight('#bcd9ea', 1.2);
+  const rim = new THREE.DirectionalLight('#bcd9ea', 1.3);
   rim.position.set(-3, 2, -2);
   scene.add(rim);
-  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.06, 40), new THREE.MeshStandardMaterial({ color: '#3a3f4a', roughness: 0.6 }));
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.06, 48), new THREE.MeshStandardMaterial({ color: '#e9e3f5', roughness: 0.6 }));
   pedestal.position.y = -0.03;
   scene.add(pedestal);
   const turntable = new THREE.Group();
   scene.add(turntable);
   let yaw = 0.35;
-  let dist = 3.1;
+  let dist = 3.6;
   let body: THREE.Object3D | null = null;
   let model: LoadedModel | null = null;
   let mixer: THREE.AnimationMixer | null = null;
-  let mats: THREE.MeshStandardMaterial[] = [];
-  let headBone: THREE.Object3D | null = null;
-  let acc: THREE.Object3D | null = null;
-  let loadSeq = 0;
+  const face = new ChibiFace();
+  const mats = chibiMaterials(face);
+  let dressed = '';
 
   const drag = { on: false, x: 0 };
   canvas.addEventListener('pointerdown', (e) => {
@@ -149,51 +105,29 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
     e.preventDefault();
   });
 
-  const applyPreview = () => {
-    if (!model || !body) return;
-    applyLook(mats, model, toLook(draft));
-    acc?.parent?.remove(acc);
-    acc = null;
-    const a = draft.accessory ? buildAccessory(draft.accessory, model.head, draft.accessoryColor) : null;
-    if (a && headBone) acc = attachToHead(headBone, a, model.head, model.scale);
+  const dress = () => {
+    if (!body || !model || chibiKey(current) === dressed) return;
+    dressed = chibiKey(current);
+    dressChibi(body, model.rig, current, mats);
   };
 
   const playClip = () => {
     if (!mixer || !model) return;
     mixer.stopAllAction();
-    const c = model.clips.get(clip) ?? model.clips.get('Idle');
+    const c = model.clips.get(PREVIEW_CLIPS[clip]![0]) ?? model.clips.get('Idle');
     if (c) mixer.clipAction(c).reset().play();
   };
 
-  const loadModel = async () => {
-    const def = modelById(draft.model) ?? fallback;
-    const seq = ++loadSeq;
-    const m = await assets.load(def);
-    if (disposed || seq !== loadSeq) return;
+  void assets.load(defaultModelFor()).then((m) => {
+    if (disposed) return;
     assets.refreshClips(m);
-    if (body) {
-      turntable.remove(body);
-      for (const x of mats) x.dispose();
-    }
     model = m;
     body = assets.instantiate(m);
-    mats = [];
-    body.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (mesh.isMesh) {
-        const own = (mesh.material as THREE.MeshStandardMaterial).clone();
-        mesh.material = own;
-        mats.push(own);
-      }
-    });
-    headBone = body.getObjectByName(m.bones[12] ?? '') ?? null;
-    acc = null;
     turntable.add(body);
     mixer = new THREE.AnimationMixer(body);
+    dress();
     playClip();
-    applyPreview();
-    renderColors();
-  };
+  });
 
   let raf = 0;
   let last = performance.now();
@@ -203,97 +137,31 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
     last = t;
     if (!drag.on) yaw += dt * 0.25;
     turntable.rotation.y = yaw;
-    camera.position.set(0, 0.55 + dist * 0.18, dist);
+    camera.position.set(0, 0.75 + dist * 0.1, dist);
     camera.lookAt(0, 0.5, 0);
     mixer?.update(dt);
+    face.update(PREVIEW_CLIPS[clip]![2], t, Math.random);
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
 
-  // ---------------------------------------------------------------- modelo
-  const models = group(tr('Personagem-base'));
-  const modelBtns = CHARACTER_MODELS.map((m) =>
-    chip(m.label, () => {
-      draft.model = m.id === fallback.id ? undefined : m.id;
-      // as células do atlas mudam de um pacote para outro: as cores escolhidas não valem no novo modelo
-      draft.colors = {};
-      renderModel();
-      void loadModel();
-    }),
-  );
-  models.body.append(...modelBtns);
-  const renderModel = () => check(modelBtns, CHARACTER_MODELS.findIndex((m) => m.id === (draft.model ?? fallback.id)));
-
   // ---------------------------------------------------------------- animação de prévia
-  const anim = group(tr('Animação de prévia'));
-  const animBtns = PREVIEW_CLIPS.map(([name, label], i) =>
-    chip(label, () => {
-      clip = name;
-      check(animBtns, i);
+  const anim = el('div', 'w3d-editor__anims');
+  anim.setAttribute('role', 'radiogroup');
+  anim.setAttribute('aria-label', tr('Animação de prévia'));
+  const animBtns = PREVIEW_CLIPS.map(([, label], i) => {
+    const b = el('button', 'ui-char__chip', label);
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.addEventListener('click', () => {
+      clip = i;
+      animBtns.forEach((x, k) => x.setAttribute('aria-checked', String(k === i)));
       playClip();
-    }),
-  );
-  anim.body.append(...animBtns);
-  check(animBtns, 0);
-
-  // ---------------------------------------------------------------- cores
-  const colors = el('fieldset', 'ui-char__group');
-  colors.append(el('legend', '', tr('Cores')));
-  const colorRows = el('div', 'w3d-editor__colors');
-  colors.append(colorRows);
-  const renderColors = () => {
-    colorRows.replaceChildren();
-    if (!model) return;
-    const regions = atlasRegions(model)
-      .slice()
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, MAX_REGIONS)
-      .sort((a, b) => b.height - a.height);
-    const seen = new Map<RegionKind, number>();
-    for (const r of regions) {
-      const kind = regionKind(r);
-      const n = (seen.get(kind) ?? 0) + 1;
-      seen.set(kind, n);
-      const row = el('label', 'w3d-editor__color');
-      const name = el('span', 'ui-char__row-label', n > 1 ? `${REGION_LABELS[kind]} ${n}` : REGION_LABELS[kind]);
-      const input = el('input', '');
-      input.type = 'color';
-      input.value = draft.colors[r.cell] ?? r.color;
-      input.addEventListener('input', () => {
-        if (input.value.toLowerCase() === r.color.toLowerCase()) delete draft.colors[r.cell];
-        else draft.colors[r.cell] = input.value.toLowerCase();
-        applyPreview();
-      });
-      row.append(name, input);
-      colorRows.append(row);
-    }
-  };
-
-  // ---------------------------------------------------------------- acessório
-  const accessory = group(tr('Acessório'));
-  const accBtns = ACCESSORIES_3D.map((a, i) =>
-    chip(ACCESSORY_LABELS[a], () => {
-      draft.accessory = a === 'none' ? undefined : a;
-      if (a !== 'none' && !draft.accessoryColor) accColor.value = defaultAccessoryColor(a);
-      check(accBtns, i);
-      accColor.disabled = a === 'none';
-      applyPreview();
-    }),
-  );
-  const accColor = el('input', 'w3d-editor__acc-color');
-  accColor.type = 'color';
-  accColor.setAttribute('aria-label', tr('Cor do acessório'));
-  accColor.addEventListener('input', () => {
-    draft.accessoryColor = accColor.value.toLowerCase();
-    applyPreview();
+    });
+    return b;
   });
-  accessory.body.append(...accBtns, accColor);
-  const renderAccessory = () => {
-    const i = ACCESSORIES_3D.indexOf(draft.accessory ?? 'none');
-    check(accBtns, i);
-    accColor.value = draft.accessoryColor ?? defaultAccessoryColor(draft.accessory ?? 'none');
-    accColor.disabled = !draft.accessory;
-  };
+  animBtns.forEach((x, k) => x.setAttribute('aria-checked', String(k === 0)));
+  anim.append(...animBtns);
 
   // ---------------------------------------------------------------- identificação
   const badgeLabel = el('label', 'ui-char__label');
@@ -303,36 +171,22 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
   badge.maxLength = BADGE_MAX;
   badge.placeholder = tr('Ex.: Revisora de código');
   badge.autocomplete = 'off';
+  badge.value = draft.badge ?? '';
   badge.addEventListener('input', () => {
     draft.badge = badge.value.trim() || undefined;
   });
   badgeLabel.append(badge);
 
-  // ---------------------------------------------------------------- restaurar
-  const restore = el('button', 'ui-link-btn', tr('Restaurar padrão 3D'));
-  restore.type = 'button';
-  restore.addEventListener('click', () => {
-    draft = { colors: {} };
-    badge.value = '';
-    renderModel();
-    renderAccessory();
-    void loadModel();
-  });
-
-  const groups = el('div', 'ui-char__groups');
-  groups.append(models.fs, anim.fs, colors, accessory.fs, badgeLabel, restore);
-  root.append(groups);
-
-  renderModel();
-  renderAccessory();
-  badge.value = draft.badge ?? '';
-  void loadModel();
+  root.append(anim, el('p', 'ui-muted ui-small', tr('Arraste para girar · role para aproximar')), badgeLabel);
 
   return {
     el: root,
+    preview(a: Appearance) {
+      current = a;
+      dress();
+    },
     save() {
-      const empty = !draft.model && !Object.keys(draft.colors).length && !draft.accessory && !draft.badge;
-      looks.set(info, empty ? null : draft);
+      looks.set(info, draft.badge ? draft : null);
     },
     reset() {
       looks.set(info, null);
@@ -341,7 +195,9 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
       disposed = true;
       cancelAnimationFrame(raf);
       mixer?.stopAllAction();
-      for (const x of mats) x.dispose();
+      mats.body.dispose();
+      mats.face.dispose();
+      face.dispose();
       pedestal.geometry.dispose();
       (pedestal.material as THREE.Material).dispose();
       renderer.dispose();

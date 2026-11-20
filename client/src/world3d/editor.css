@@ -13,11 +13,12 @@
   color: var(--ui-text);
 }
 .w3d-editor__preview {
-  width: 240px;
-  height: 260px;
+  width: 260px;
+  height: 300px;
   align-self: center;
   border-radius: var(--radius-sm);
-  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02) 70%);
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 38%, rgba(196, 206, 255, 0.28), rgba(154, 168, 255, 0.06) 70%);
   cursor: grab;
   touch-action: none;
 }
@@ -62,4 +63,11 @@
   border-top: 1px solid var(--ui-line-strong);
   font: 600 12px/1.2 var(--font-ui);
   color: var(--ui-text);
+}
+
+.w3d-editor__anims {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
 }

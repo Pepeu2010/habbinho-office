@@ -3,7 +3,8 @@
 // métricas, feed nem no Habblaud World, e não são selecionáveis. Usam a grade e o A* da simulação (os mesmos caminhos
 // dos agentes) e reservam o lugar onde estão, para nenhum agente sentar no mesmo assento.
 import type { AgentInfo, AgentStatus } from '../../../shared/types';
-import type { Appearance, Dir, HeldItem, Pose } from '../art/api';
+import { appearanceFromSeed } from '../art';
+import type { Dir, HeldItem, Pose } from '../art/api';
 import { FOOT_DX, FOOT_DY, TILE } from '../world/constants';
 import type { SpotDef, SpotKind } from '../world/layout/types';
 import type { PathFinder } from '../world/path/astar';
@@ -62,7 +63,8 @@ export class Npc {
 
   constructor(id: string, seed: number, look: 'f' | 'm', now: number, rng: () => number) {
     const info = { id, seed, look, name: '', roomId: 'core:recepcao', kind: 'main', status: 'idle' as AgentStatus } as unknown as AgentInfo;
-    this.ch = new Character(info, {} as Appearance);
+    // aparência sorteada como a de um agente (o Habbinho é vestido a partir dela)
+    this.ch = new Character(info, appearanceFromSeed(seed, { look }));
     this.ch.alpha = 0;
     this.plan = 2 + Math.floor(rng() * 3);
     this.movedAt = now;
