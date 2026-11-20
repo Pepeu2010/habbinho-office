@@ -54,6 +54,8 @@ export interface ServerConfig {
   codex: boolean;
   /** Observa as sessões do OpenCode (sources/opencode/); HABBLAUD_OPENCODE=0 desliga. */
   opencode: boolean;
+  /** Agentes com modelos locais (Ollama/LM Studio; server/local-agents). HABBLAUD_LOCAL_AGENTS=0 desliga. */
+  localAgents: boolean;
   /** Segunda porta, com login, para o celular na rede local (http/remote.ts); ausente = desligada. */
   remote?: RemoteConfig;
   /** Por que o acesso remoto ficou desligado quando as variáveis estão incompletas. */
@@ -252,6 +254,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     updateCheck: !env.HABBLAUD_UPDATE_CHECK?.trim() || isTruthy(env.HABBLAUD_UPDATE_CHECK),
     codex: !env.HABBLAUD_CODEX?.trim() || isTruthy(env.HABBLAUD_CODEX),
     opencode: !env.HABBLAUD_OPENCODE?.trim() || isTruthy(env.HABBLAUD_OPENCODE),
+    localAgents: !env.HABBLAUD_LOCAL_AGENTS?.trim() || isTruthy(env.HABBLAUD_LOCAL_AGENTS),
     remote: remote.config,
     remoteWarning: remote.warning,
     world: parseWorldConfig(env, argv),

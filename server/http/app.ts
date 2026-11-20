@@ -18,6 +18,7 @@ import { tr } from '../../shared/i18n';
 import type { SpawnService } from '../spawn/spawn';
 import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../spawn/attachments';
 import type { SpawnFolder } from '../spawn/folders';
+import type { LocalAgentRuntime } from '../local-agents/runtime';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
@@ -65,6 +66,8 @@ export interface ApiDeps {
   codexLive?: CodexLive;
   /** Novo agente pelo escritório (/api/spawn e, para o auxiliar do host, /api/host/spawn/*; server/spawn/spawn.ts). */
   spawn?: SpawnService;
+  /** Agentes com modelos locais (/api/local-agents; server/local-agents/runtime.ts). */
+  localAgents?: LocalAgentRuntime;
   /** Pastas sugeridas no "Novo agente" (GET /api/spawn/folders; spawn/folders.ts): projetos recentes. */
   spawnFolders?: () => Promise<SpawnFolder[]>;
   /** Anexos do "Novo agente" (POST /api/spawn/attachments; spawn/attachments.ts). */
@@ -399,6 +402,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           terminal: !!terminals && trusted(req, 'terminal'),
           spawn: !!deps.spawn && trusted(req, 'spawn'),
           world: !!deps.world && !!deps.terminal && !remote && isLoopbackHost(req.headers.host),
+          localAgents: !!deps.localAgents && trusted(req, 'spawn'),
         };
         sendJson(res, 200, access);
       }
@@ -526,6 +530,50 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         if (info) sendJson(res, 200, info);
         else sendJson(res, 404, { error: tr('pedido desconhecido') });
       } else methodNotAllowed(res, path === '/api/spawn' ? 'GET, POST' : 'GET');
+      return true;
+    }
+    if (path === '/api/local-agents' || path.startsWith('/api/local-agents/')) {
+      // Roda um modelo neste computador e lê arquivos do projeto: a mesma trava do "Novo agente".
+      const local = deps.localAgents;
+      if (!local) {
+        req.resume();
+        sendJson(res, 403, { error: tr('agentes locais desligados') });
+      } else if (!trusted(req, 'spawn')) {
+        req.resume();
+        sendJson(res, 403, { error: denied(req, tr('agentes locais só são abertos pelo próprio computador (http://localhost)')) });
+      } else if (path === '/api/local-agents' && isRead) {
+        local.models().then((m) => sendJson(res, 200, { ...m, sessions: local.list() }), (err) => fail(res, err));
+      } else if (path === '/api/local-agents' && method === 'POST') {
+        readJson(req)
+          .then(async (body) => {
+            const r = await local.create(body);
+            if ('session' in r) return sendJson(res, 201, r.session);
+            sendJson(res, r.error === 'invalid' ? 400 : r.error === 'too-many' ? 429 : 409, { error: r.reason });
+          })
+          .catch((err) => fail(res, err));
+      } else {
+        const m = /^\/api\/local-agents\/([^/]+)(\/cancel)?$/.exec(path);
+        let agentId = '';
+        try {
+          agentId = m ? decodeURIComponent(m[1]!) : '';
+        } catch {
+          agentId = '';
+        }
+        if (!m || !agentId) {
+          req.resume();
+          sendJson(res, 404, { error: tr('rota desconhecida') });
+        } else if (m[2] && method === 'POST') {
+          req.resume();
+          if (local.cancel(agentId)) sendJson(res, 200, { ok: true });
+          else sendJson(res, 404, { error: tr('agente local desconhecido') });
+        } else if (!m[2] && method === 'DELETE') {
+          req.resume();
+          local.end(agentId).then((ok) => (ok ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: tr('agente local desconhecido') })), (err) => fail(res, err));
+        } else {
+          req.resume();
+          methodNotAllowed(res, m[2] ? 'POST' : 'DELETE');
+        }
+      }
       return true;
     }
     if (path === '/api/dictation' || path.startsWith('/api/dictation/')) {

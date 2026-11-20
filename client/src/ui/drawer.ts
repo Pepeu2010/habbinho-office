@@ -39,6 +39,7 @@ import {
   visibleShells,
 } from './model';
 import { access } from '../net/access';
+import { localAgentAction } from './local-agent';
 import { PermissionCard } from './permission';
 import { canRenameRoom } from './roomrename';
 import { accountChipLabel, accountProvider, CODEX_LIVE_HINT, codexApprovalLabel, providerOf } from './provider';
@@ -214,6 +215,10 @@ class AgentView {
   private statusText: HTMLElement;
   private statusSince: HTMLElement;
   private followBtn: HTMLButtonElement;
+  /** Agentes locais: interromper o turno e encerrar a sessão (server/local-agents). */
+  private localActions: HTMLElement;
+  private localEndBtn: HTMLButtonElement;
+  private localEndArmed = false;
   private termBtn: HTMLButtonElement;
   private termLabel: HTMLElement;
   /** Por que o terminal não abre: no celular não há hover para ler o title, então o toque mostra o motivo aqui. */
@@ -304,6 +309,12 @@ class AgentView {
       { class: 'ui-status' },
       h('span', { class: 'ui-status__label' }, this.dot, this.statusText, this.statusSince),
       h('span', { class: 'ui-status__actions' }, this.followBtn, centerBtn),
+      (this.localActions = h(
+        'span',
+        { class: 'ui-status__actions ui-local__actions', hidden: true },
+        h('button', { class: 'ui-btn', type: 'button', title: tr('Interromper a tarefa em andamento'), on: { click: () => void this.localAction('cancel') } }, tr('Interromper')),
+        (this.localEndBtn = h('button', { class: 'ui-btn', type: 'button', title: tr('Encerrar a sessão e apagar a conversa deste agente local'), on: { click: () => void this.localAction('end') } }, tr('Encerrar'))),
+      )),
     );
 
     // Terminal: a conversa da sessão como o Claude Code mostra, ao vivo (só com acesso local).
@@ -566,6 +577,7 @@ class AgentView {
     setAttr(this.followBtn, 'aria-pressed', String(following));
     this.followBtn.classList.toggle('is-on', following);
     this.renderTerminalButton(!!live);
+    setHidden(this.localActions, provider !== 'local' || !live || !access().localAgents);
 
     // Alerta.
     const waiting = a.status === 'waiting' && !!live;
@@ -664,6 +676,29 @@ class AgentView {
   }
 
   /** Lista as perguntas pendentes com as opções, só para leitura (sem o pedido no escritório, a resposta é no Claude Code). */
+  /** Interromper (na hora) ou encerrar (pede confirmação com um segundo clique) o agente local da gaveta. */
+  private async localAction(action: 'cancel' | 'end'): Promise<void> {
+    const a = this.last;
+    if (!a) return;
+    if (action === 'end' && !this.localEndArmed) {
+      this.localEndArmed = true;
+      setText(this.localEndBtn, tr('Confirmar: encerrar'));
+      setTimeout(() => {
+        this.localEndArmed = false;
+        setText(this.localEndBtn, tr('Encerrar'));
+      }, 4000);
+      return;
+    }
+    this.localEndArmed = false;
+    setText(this.localEndBtn, tr('Encerrar'));
+    try {
+      await localAgentAction(a.id, action);
+      this.ctx.announce(action === 'cancel' ? tr('Tarefa interrompida.') : tr('Agente local encerrado.'));
+    } catch (err) {
+      this.ctx.announce((err as Error).message);
+    }
+  }
+
   private renderQuestions(act: Activity | undefined): void {
     const qs = act?.questions ?? [];
     setHidden(this.alertQuestions, qs.length === 0);

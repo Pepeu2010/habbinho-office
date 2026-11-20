@@ -218,7 +218,8 @@ export class UsageCards {
   }
 
   render(): void {
-    const accounts = this.ctx.store.snapshot?.accounts ?? [];
+    // Só Claude Code e Codex informam uso (5 h/semana): OpenCode e modelos locais não têm o que mostrar nem "Ativar".
+    const accounts = (this.ctx.store.snapshot?.accounts ?? []).filter((a) => !a.provider || a.provider === 'claude' || a.provider === 'codex');
     this.list.sync(accounts);
     this.el.classList.toggle('is-empty', accounts.length === 0);
     setStyleVar(this.el, '--count', String(accounts.length));

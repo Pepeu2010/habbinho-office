@@ -38,6 +38,8 @@ import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
 import { hasOpencodeDb, opencodeDataDir, OpencodeSource, sqliteOpener } from './sources/opencode/source';
+import { llmConfig } from './local-agents/llm';
+import { LocalAgentRuntime } from './local-agents/runtime';
 import { createBuildReader, readBuildInfo } from './build';
 import { UpdateChecker } from './updates/checker';
 import { getLocale, tr } from '../shared/i18n';
@@ -144,6 +146,11 @@ const opencodeDir = opencodeDataDir(process.env, config.home);
 const opencodeOpen = config.opencode && hasOpencodeDb(opencodeDir) ? sqliteOpener() : undefined;
 const opencode = opencodeOpen ? new OpencodeSource({ accounts, office, dir: opencodeDir, open: opencodeOpen }) : undefined;
 if (opencode) agents.add(opencode);
+// Agentes com modelos locais (local-agents/): rodam aqui, leem arquivos do projeto e conversam com o Ollama/LM Studio
+// pelo loopback. Só com a trava do terminal (acesso local) e fora do Docker; HABBLAUD_LOCAL_AGENTS=0 desliga.
+const localAgentsOff = !config.localAgents ? tr('desligado (HABBLAUD_LOCAL_AGENTS=0)') : config.inDocker ? tr('indisponível no Docker (rode com npm start)') : !config.terminal ? tr('só com acesso local (mesma trava do terminal)') : undefined;
+const localAgents = localAgentsOff ? undefined : new LocalAgentRuntime({ accounts, office, dataDir: config.dataDir, llm: llmConfig(process.env) });
+if (localAgents) agents.add(localAgents);
 // Eventos dos hooks do Codex (POST /api/codex/events, mod/habblaud-codex/hook.mjs): vão para a fonte do Codex ao vivo
 // (CodexLive); sem ela (nenhuma pasta do Codex ou HABBLAUD_CODEX=0) a rota responde {ok: false}.
 const codexLive: CodexLive | undefined = codex;
@@ -280,6 +287,7 @@ const messages = config.messages
         run: codexBin ? createCodexQueueRunner(codexBin) : undefined,
         homeOf: (account) => accounts.entriesOf('codex').find((e) => e.id === account)?.detected.configDir,
       },
+      local: localAgents ? { has: (id) => localAgents.has(id), send: (id, text) => localAgents.send(id, text) } : undefined,
     })
   : undefined;
 late.messages = messages;
@@ -370,6 +378,7 @@ const api = createApiHandler({
   dictation,
   deliveries,
   files: deliveryFiles,
+  localAgents,
   spawnFolders: async () => {
     const snap = hub.current();
     const last = new Map<string, number>();
@@ -511,6 +520,12 @@ server.listen(config.port, config.host, () => {
       ]),
     );
   }
+  if (localAgents) {
+    void localAgents.models().then((m) => {
+      const on = Object.entries(m.backends).filter(([, v]) => v).map(([k]) => (k === 'ollama' ? 'Ollama' : 'LM Studio'));
+      log.info(tr('   Agentes locais: {0} modelo(s) · {1}', [m.models.length, on.length ? on.join(', ') : tr('nenhum Ollama/LM Studio respondendo')]));
+    });
+  } else log.info(tr('   Agentes locais: {0}.', [localAgentsOff!]));
   if (office.isDemo()) log.info(tr('   Modo demonstração ligado (agentes simulados misturados aos reais).'));
   if (config.terminal) log.info(tr('   Terminal: ligado (acesso só local).'));
   else log.info(tr('   Terminal: desligado ({0}).', [terminalOffReason(process.env, config.host, config.inDocker)]));

@@ -31,6 +31,18 @@ do meio (0.**3**.0).
   ou mais novo. Limites: os pedidos de permissão do OpenCode não ficam no banco (o agente aparece trabalhando), o
   terminal e as mensagens do escritório ainda não falam com ele, e os agentes do OpenCode não sobem para o Habblaud
   World.
+- **Agentes com modelos locais (Ollama e LM Studio).** O botão **Agente local** da barra abre um agente com um modelo
+  que roda no próprio computador: ele entra na sala do projeto, lê os arquivos da pasta (listar, ler e buscar; não
+  executa comandos, não edita e não acessa a internet) e responde. Novas tarefas vão pela caixa de mensagem da gaveta,
+  que também tem **Interromper** e **Encerrar**; o "Abrir terminal" mostra a conversa inteira. As sessões ficam em
+  `~/.habblaud/local-agents` e voltam depois de reiniciar. Só com acesso local; `HABBLAUD_LOCAL_AGENTS=0` desliga,
+  `HABBLAUD_OLLAMA_URL`/`HABBLAUD_LMSTUDIO_URL` (só endereços deste computador) e `HABBLAUD_LOCAL_CTX` (janela de
+  contexto, padrão 8192) ajustam. Agentes locais não sobem para o Habblaud World.
+
+### Corrigido
+
+- Os cartões de uso da barra não aparecem mais para OpenCode e modelos locais (não há uso a mostrar nem o que ativar),
+  e a caixa de mensagem do OpenCode diz o motivo certo em vez de pedir um plugin que não serve para ele.
 
 ## [1.0.3] - 2026-10-16
 

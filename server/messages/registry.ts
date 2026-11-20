@@ -82,6 +82,8 @@ export interface MessageRegistryOptions {
   demoDeliver?: (agentId: string, text: string) => boolean;
   /** Mensagens aos agentes do Codex; ausente = eles não recebem. */
   codex?: CodexDeliveryOptions;
+  /** Agentes locais (server/local-agents): a mensagem entra direto na conversa; ausente = eles não recebem. */
+  local?: LocalDelivery;
   now?: () => number;
   /** Intervalo do relógio interno (start). */
   tickMs?: number;
@@ -90,6 +92,12 @@ export interface MessageRegistryOptions {
   sentTimeoutMs?: number;
   keepMs?: number;
   demoDeliveryMs?: number;
+}
+
+/** Entrega direta aos agentes locais (o próprio servidor roda a conversa). */
+export interface LocalDelivery {
+  has(agentId: string): boolean;
+  send(agentId: string, text: string): { ok: true } | { ok: false; error: string };
 }
 
 export type SendResult = { message: OutboxMessage } | { error: 'not-found' | 'too-many' } | { error: 'unavailable'; reason: string };
@@ -152,7 +160,12 @@ const isFinal = (e: Entry) => e.msg.status === 'delivered' || e.msg.status === '
 function unavailableReason(a: AgentInfo, reachable: boolean): string | undefined {
   if (a.kind !== 'main') return tr('subagentes não recebem mensagens: mande para o agente principal');
   if (!present(a)) return tr('o agente já saiu do escritório');
-  if (!reachable) return a.provider === 'codex' ? ERR_CODEX_UNAVAILABLE : tr('a sessão não está com o plugin habblaud-mensagens conectado (npm run mod:install)');
+  if (!reachable) {
+    if (a.provider === 'codex') return ERR_CODEX_UNAVAILABLE;
+    if (a.provider === 'opencode') return tr('o escritório ainda não manda mensagens para o OpenCode');
+    if (a.provider === 'local') return tr('agentes locais desligados neste servidor');
+    return tr('a sessão não está com o plugin habblaud-mensagens conectado (npm run mod:install)');
+  }
   return undefined;
 }
 
@@ -234,12 +247,15 @@ export class MessageRegistry {
     const out = new Set<string>();
     for (const id of this.seen.keys()) if (this.canMessage(id)) out.add(id);
     if (this.codexAvailable()) for (const a of this.opts.office.list()) if (a.provider === 'codex' && a.kind === 'main' && present(a)) out.add(a.id);
+    if (this.opts.local) for (const a of this.opts.office.list()) if (a.provider === 'local' && a.kind === 'main' && present(a) && this.opts.local.has(a.id)) out.add(a.id);
     return out;
   }
 
   canMessage(agentId: string): boolean {
     const a = this.opts.office.get(agentId);
     if (a?.provider === 'codex') return this.codexAvailable() && present(a) && a.kind === 'main';
+    if (a?.provider === 'local') return !!this.opts.local?.has(agentId) && present(a) && a.kind === 'main';
+    if (a?.provider === 'opencode') return false;
     const at = this.seen.get(agentId);
     if (at === undefined || this.now() - at >= this.presenceMs) return false;
     return present(a) && a.kind === 'main';
@@ -274,6 +290,13 @@ export class MessageRegistry {
     if (demo) entry.demo = true;
     else if (real?.provider === 'codex') entry.codex = true;
     this.messages.set(id, entry);
+    if (real?.provider === 'local') {
+      // entrega na hora: a mensagem entra na fila da conversa do agente local
+      const r = this.opts.local!.send(agentId, text);
+      if (r.ok) this.finish(entry, 'delivered', now);
+      else this.fail(entry, now, truncate(r.error, ERROR_MAX));
+      return { message: { ...entry.msg } };
+    }
     const out = { ...entry.msg };
     if (entry.codex) this.pumpCodex();
     return { message: out };

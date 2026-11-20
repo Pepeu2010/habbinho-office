@@ -211,6 +211,9 @@ describe('projeção: regras', () => {
     expect(ids.calls.some((c) => c.startsWith('demo:') || c === 'acc:2')).toBe(false);
     // Só demonstração: prédio sem andares.
     expect(project(input([room('demo:/x')], [agent('demo:a', 'demo:/x')]), new FakeIds(), NOW).floors).toEqual([]);
+    // ferramentas que o protocolo do mundo não conhece (OpenCode, modelos locais) não sobem como se fossem outra
+    const others = project(input([room('/p')], [agent('a', '/p', { provider: 'opencode' }), agent('b', '/p', { provider: 'local' }), agent('c', '/p', { provider: 'codex' })]), new FakeIds(), NOW);
+    expect(agentsOf(others)).toHaveLength(1);
   });
 
   it('só agentes presentes: done e offline somem, e a sala sem ninguém presente não vira andar', () => {

@@ -15,7 +15,7 @@ export type AgentKind = 'main' | 'sub';
  * - claude: Claude Code;
  * - codex: OpenAI Codex (CLI `codex` e o app desktop, que gravam no mesmo CODEX_HOME).
  */
-export type Provider = 'claude' | 'codex' | 'opencode';
+export type Provider = 'claude' | 'codex' | 'opencode' | 'local';
 
 /**
  * Estado de alto nível de um agente — é o que dirige o comportamento do personagem.
@@ -396,6 +396,8 @@ export interface AccessInfo {
    * com Host local. Ausente em servidores antigos.
    */
   world?: boolean;
+  /** Pode abrir e conduzir agentes com modelos locais (Ollama/LM Studio; /api/local-agents). Ausente em servidores antigos. */
+  localAgents?: boolean;
 }
 
 export interface FeedItem {
