@@ -11,6 +11,9 @@ export interface WalkHud {
   /** Painel de andares do elevador. */
   floors(open: boolean): void;
   readonly floorsOpen: boolean;
+  /** Menu curto de um objeto com mais de uma ação (null fecha). */
+  menu(items: { label: string; run(): void }[] | null): void;
+  readonly menuOpen: boolean;
   dispose(): void;
 }
 
@@ -48,14 +51,19 @@ export function createWalkHud(parent: HTMLElement, on: { view(): void; exit(): v
     btn(tr('Mezanino'), () => on.floor('mezzanine')),
     btn(tr('Cobertura'), () => on.floor('roof')),
   );
+  const menu = document.createElement('div');
+  menu.className = 'w3d-walk__floors';
+  menu.hidden = true;
+  menu.setAttribute('role', 'group');
+  menu.setAttribute('aria-label', tr('Ações'));
   bar.append(keys, viewBtn, btn(tr('Editar meu personagem'), on.editOwner), btn(tr('Sair'), on.exit));
-  root.append(floors, prompt, bar);
+  root.append(floors, menu, prompt, bar);
   parent.append(root);
   let last: string | null = '';
   return {
     show(view) {
       root.hidden = !view;
-      if (!view) floors.hidden = true;
+      if (!view) floors.hidden = menu.hidden = true;
       const next = view ? NEXT_VIEW[view] : 'first';
       viewBtn.textContent = next === 'first' ? tr('Primeira pessoa') : next === 'above' ? tr('Vista de cima') : tr('Terceira pessoa');
     },
@@ -71,6 +79,17 @@ export function createWalkHud(parent: HTMLElement, on: { view(): void; exit(): v
     },
     get floorsOpen() {
       return !floors.hidden;
+    },
+    menu(items) {
+      menu.replaceChildren(...(items ?? []).map((it) => btn(it.label, () => {
+        menu.hidden = true;
+        it.run();
+      })));
+      menu.hidden = !items;
+      if (items) (menu.firstElementChild as HTMLElement).focus();
+    },
+    get menuOpen() {
+      return !menu.hidden;
     },
     dispose() {
       root.remove();

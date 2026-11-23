@@ -16,7 +16,7 @@ import type { Character } from '../world/sim/character';
 import type { BuildingView } from '../world/api';
 import type { RoomState } from '../world/sim/room-state';
 import type { Sim } from '../world/sim/sim';
-import { arcadeScreen, buildFloorFurniture, buildWallItem, screenMat, signMesh, type FurnitureCtx, type FurnitureHooks } from './furniture';
+import { arcadeScreen, buildFloorFurniture, buildWallItem, screenMat, signMesh, tvScreen, TV_CHANNELS, type FurnitureCtx, type FurnitureHooks } from './furniture';
 import { PAL, block, canvasTex, cyl, mat, mergeStatic, put, rbox, sphere, texMat } from './kit';
 import type { NatureKit } from './assets';
 import { screenModeFor } from './screens';
@@ -81,6 +81,13 @@ interface AreaView {
 
 const px = (v: number) => v / TILE;
 
+/** Uma ação do E num objeto; `book` diz se o dono fica com o livro na mão depois dela. */
+export interface UseAction {
+  label: string;
+  run(): void;
+  book?: boolean;
+}
+
 export class Building3D {
   readonly root = new THREE.Group();
   readonly architecture = new Architecture3D();
@@ -95,7 +102,14 @@ export class Building3D {
   private cameraRay = new THREE.Ray();
   private cameraWall = new THREE.Box3();
   private cameraHit = new THREE.Vector3();
-  private drawerPoint = new THREE.Vector3();
+  private usePoint = new THREE.Vector3();
+  /** Estado dos objetos que o dono usa no Passear, por id do móvel (sobrevive à remontagem das salas). */
+  private used = new Map<string, number>();
+  /** Luz da sala ligada ou desligada no interruptor, por área (só no 3D; o 2D e o snapshot não mudam). */
+  private lights = new Map<string, boolean>();
+  /** Estante de onde saiu o livro que o dono carrega. */
+  private bookFrom: string | null = null;
+  private night = 0;
   private exteriorGlow = new THREE.MeshStandardMaterial({
     color: '#f4d8a5', emissive: '#f6b96c', emissiveIntensity: 0.04, roughness: 0.42,
   });
@@ -116,28 +130,78 @@ export class Building3D {
     this.exteriorCols = -1;
   }
 
-  nearbyDrawer(x: number, z: number, now: number): { id: string; open: boolean } | null {
-    let closest: { id: string; open: boolean } | null = null;
-    let reach = 1.13;
+  get carryingBook(): boolean {
+    return this.bookFrom !== null;
+  }
+
+  /** Objeto usável mais perto (gaveta, abajur, TV, geladeira, estante, interruptor) e o que dá para fazer nele. */
+  nearbyUsable(x: number, z: number): { label: string; actions: UseAction[]; d: number } | null {
+    let best: { label: string; actions: UseAction[]; d: number } | null = null;
+    let reach = 1.2;
     for (const area of this.areas.values()) {
       if (!area.group.visible) continue;
       for (const [id, hooks] of area.hooks) {
-        if (!hooks.drawer) continue;
-        const p = hooks.drawer.handle.getWorldPosition(this.drawerPoint);
+        const anchor = hooks.drawer?.handle ?? hooks.lamp ?? hooks.use?.part;
+        if (!anchor) continue;
+        const p = anchor.getWorldPosition(this.usePoint);
         const d = Math.hypot(x - p.x, z - p.z);
-        if (d >= reach || z < p.z - 0.07) continue;
+        if (d >= reach) continue;
+        // gaveta: só de frente (atrás do arquivo não alcança)
+        if (hooks.drawer && z < p.z - 0.07) continue;
+        const actions = this.actionsFor(id, area, hooks);
+        if (!actions.length) continue;
         reach = d;
-        closest = { id, open: hooks.drawer.until > now };
+        best = { label: actions.length > 1 ? tr('Usar a TV') : actions[0]!.label, actions, d };
       }
     }
-    return closest;
+    return best;
   }
 
-  toggleDrawer(id: string, now: number): void {
-    for (const area of this.areas.values()) {
-      const drawer = area.hooks.get(id)?.drawer;
-      if (drawer) drawer.until = drawer.until > now ? 0 : now + 4_500;
+  private actionsFor(id: string, area: AreaView, hooks: FurnitureHooks): UseAction[] {
+    const state = this.used.get(id) ?? 0;
+    const set = (v: number) => () => void this.used.set(id, v);
+    if (hooks.drawer) return [{ label: state ? tr('Fechar gaveta') : tr('Abrir gaveta'), run: set(state ? 0 : 1) }];
+    if (hooks.lamp) {
+      const on = this.lampOn(id, area, this.night);
+      return [{ label: on ? tr('Apagar o abajur') : tr('Acender o abajur'), run: set(on ? 0 : 1) }];
     }
+    switch (hooks.use?.kind) {
+      case 'fridge':
+        return [{ label: state ? tr('Fechar a geladeira') : tr('Abrir a geladeira'), run: set(state ? 0 : 1) }];
+      case 'switch': {
+        const on = this.lit(area);
+        return [{ label: on ? tr('Apagar as luzes') : tr('Acender as luzes'), run: () => void this.lights.set(area.id, !on) }];
+      }
+      case 'tv': {
+        // TV começa ligada no canal 1: guardamos canal + 1 (0 = nunca mexida)
+        const ch = this.used.has(id) ? state : 1;
+        if (!ch) return [{ label: tr('Ligar a TV'), run: set(1) }];
+        return [
+          { label: tr('Trocar de canal'), run: set((ch % TV_CHANNELS) + 1) },
+          { label: tr('Desligar a TV'), run: set(0) },
+        ];
+      }
+      case 'shelf':
+        if (this.bookFrom !== null) return [{ label: tr('Devolver o livro'), book: false, run: () => {
+          this.used.delete(this.bookFrom!);
+          this.bookFrom = null;
+        } }];
+        return [{ label: tr('Pegar um livro'), book: true, run: () => {
+          this.used.set(id, 1);
+          this.bookFrom = id;
+        } }];
+    }
+    return [];
+  }
+
+  private lit(area: AreaView): boolean {
+    return this.lights.get(area.id) ?? area.room?.lightOn ?? true;
+  }
+
+  /** Abajur: o que o dono escolheu; senão acende à noite com a luz da sala. */
+  private lampOn(id: string, area: AreaView, night: number): boolean {
+    const v = this.used.get(id);
+    return v !== undefined ? v === 1 : night > 0.35 && this.lit(area);
   }
 
   /** Braço de câmera contra as paredes, incluindo os vãos reais das portas. */
@@ -215,6 +279,7 @@ export class Building3D {
     coffeeSource?: string;
   }): void {
     this.architecture.setNight(night);
+    this.night = night;
     this.campus?.update(now);
     this.exteriorGlow.emissiveIntensity = 0.04 + night * 1.52;
     if (this.exteriorPool) this.exteriorPool.opacity = THREE.MathUtils.smoothstep(night, 0.16, 0.92) * 0.46;
@@ -254,8 +319,8 @@ export class Building3D {
         v.group.visible = s > 0.002;
       }
       if (v.light) {
-        const lit = r ? r.lightOn : true;
-        const goal = lit ? 16 * night : 0;
+        // interruptor ligado de dia ainda acende um pouco (senão o clique não mostra nada)
+        const goal = this.lit(v) ? 16 * (this.lights.get(v.id) ? Math.max(night, 0.4) : night) : 0;
         v.light.intensity += (goal - v.light.intensity) * k;
         v.light.visible = v.light.intensity > 0.02;
       }
@@ -272,10 +337,16 @@ export class Building3D {
         }
         if (hooks.cup) hooks.cup.visible = occupant?.held !== 'coffee' && id !== people.coffeeSource;
         if (hooks.drawer) {
-          const { obj, z, until } = hooks.drawer;
-          obj.position.z = THREE.MathUtils.lerp(obj.position.z, z + (now < until ? 0.155 : 0), k);
+          const { obj, z } = hooks.drawer;
+          obj.position.z = THREE.MathUtils.lerp(obj.position.z, z + (this.used.get(id) ? 0.155 : 0), k);
         }
-        if (hooks.lamp) hooks.lamp.visible = night > 0.35 && (r?.lightOn ?? true);
+        if (hooks.lamp) hooks.lamp.visible = this.lampOn(id, v, night);
+        if (hooks.use) {
+          const { kind, part } = hooks.use;
+          if (kind === 'tv') (part as THREE.Mesh).material = tvScreen(this.used.get(id) ?? 1);
+          else if (kind === 'fridge') part.visible = !!this.used.get(id);
+          else if (kind === 'shelf') part.visible = !this.used.get(id);
+        }
         if (hooks.arcade) hooks.arcade.material = arcadeScreen(arcade ? 1 + Math.floor(now / 110) % 7 : 0);
         if (hooks.steam) {
           hooks.steam.visible = (sim.machineUntil.get(id) ?? 0) > now;
@@ -395,7 +466,7 @@ export class Building3D {
       obj.position.set(f.tx + px(f.dx ?? 0), 0, f.ty + px(f.dy ?? 0));
       obj.userData.furnitureId = f.id;
       g.add(obj);
-      if (hooks.screen || hooks.chair || hooks.cup || hooks.pingpong || hooks.arcade || hooks.lamp || hooks.drawer) view.hooks.set(f.id, hooks);
+      if (hooks.screen || hooks.chair || hooks.cup || hooks.pingpong || hooks.arcade || hooks.lamp || hooks.drawer || hooks.use) view.hooks.set(f.id, hooks);
       if (hooks.screen) this.screens.set(f.id, hooks.screen);
       if (['desk', 'desk_back', 'sofa', 'bookshelf', 'coffee_machine', 'plant_tall'].includes(f.kind)) {
         const shadow = new THREE.Mesh(contactPlane, contactMaterial());
@@ -424,6 +495,7 @@ export class Building3D {
       g.add(obj);
       if (hooks.doors) view.elevators.push(hooks);
       if (hooks.clockHands) view.clocks.push(hooks);
+      if (hooks.use) view.hooks.set(it.id, hooks);
     }
     // ---- luz de teto (à noite)
     if (a.kind !== 'corridor' && !a.id.startsWith(CAMPUS_GARDEN) && !shell) {

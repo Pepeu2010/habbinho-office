@@ -47,7 +47,60 @@ export interface FurnitureHooks {
   arcade?: THREE.Mesh;
   steam?: THREE.Group;
   lamp?: THREE.Mesh;
-  drawer?: { obj: THREE.Object3D; handle: THREE.Object3D; z: number; until: number };
+  drawer?: { obj: THREE.Object3D; handle: THREE.Object3D; z: number };
+  /** Objeto que o dono usa no Passear (E): a peça que muda e serve de ponto de alcance. */
+  use?: { kind: 'tv' | 'fridge' | 'shelf' | 'switch'; part: THREE.Object3D };
+}
+
+/** Canais da TV do lounge (0 = desligada). */
+export const TV_CHANNELS = 3;
+
+const drawField = (c: CanvasRenderingContext2D, cw: number, ch: number) => {
+  const gr = c.createLinearGradient(0, 0, 0, ch);
+  gr.addColorStop(0, '#3a8f4f');
+  gr.addColorStop(1, '#2a6b3b');
+  c.fillStyle = gr;
+  c.fillRect(0, 0, cw, ch);
+  c.strokeStyle = 'rgba(255,255,255,.7)';
+  c.lineWidth = 1.5;
+  c.strokeRect(6, 6, cw - 12, ch - 12);
+  c.beginPath();
+  c.moveTo(cw / 2, 6);
+  c.lineTo(cw / 2, ch - 6);
+  c.stroke();
+  c.beginPath();
+  c.arc(cw / 2, ch / 2, 10, 0, Math.PI * 2);
+  c.stroke();
+};
+
+/** Tela da TV por canal: futebol, jornal, desenho; 0 = desligada. */
+export function tvScreen(channel: number): THREE.Material {
+  if (channel === 1) return texMat('tv', 128, 72, drawField, 0.9);
+  if (channel === 2) return texMat('tv:news', 128, 72, (c, cw, ch) => {
+    c.fillStyle = '#1d3f73';
+    c.fillRect(0, 0, cw, ch);
+    c.fillStyle = '#e9eef6';
+    c.fillRect(50, 12, 46, 40);
+    c.fillStyle = '#c0392b';
+    c.fillRect(0, ch - 18, cw, 12);
+    c.fillStyle = '#fff';
+    for (let i = 0; i < 5; i++) c.fillRect(8 + i * 24, ch - 14, 16, 3);
+  }, 0.9);
+  if (channel === 3) return texMat('tv:cartoon', 128, 72, (c, cw, ch) => {
+    c.fillStyle = '#8fd3f4';
+    c.fillRect(0, 0, cw, ch);
+    c.fillStyle = '#7cc46a';
+    c.fillRect(0, ch * 0.7, cw, ch * 0.3);
+    c.fillStyle = '#ffd43b';
+    c.beginPath();
+    c.arc(cw * 0.78, ch * 0.25, 9, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff7aa2';
+    c.beginPath();
+    c.arc(cw * 0.35, ch * 0.6, 12, 0, Math.PI * 2);
+    c.fill();
+  }, 0.9);
+  return mat('#111418', { rough: 0.2 });
 }
 
 const DESK_TOPS: Record<string, string> = { wood: PAL.oak, white: PAL.white, dark: PAL.woodDark };
@@ -263,12 +316,44 @@ function books(g: THREE.Group, x0: number, y: number, z: number, width: number, 
 
 type Builder = (g: THREE.Group, w: number, h: number, ctx: FurnitureCtx, hooks: FurnitureHooks) => void;
 
+/** Geladeira aberta (escondida até o dono abrir): interior aceso com prateleiras e a porta girada para fora. */
+function fridgeOpen(g: THREE.Group): THREE.Object3D {
+  const box = new THREE.Box3().setFromObject(g);
+  if (box.isEmpty()) box.set(new THREE.Vector3(0.11, 0, 0.1), new THREE.Vector3(0.89, 1.65, 0.8));
+  const w = box.max.x - box.min.x;
+  const h = box.max.y - box.min.y;
+  const cx = (box.min.x + box.max.x) / 2;
+  const front = box.max.z;
+  const open = new THREE.Group();
+  block(open, w * 0.86, h * 0.86, 0.01, mat('#eef6fb', { emissive: '#dff1ff', emissiveIntensity: 0.6 }), cx, h * 0.07, front + 0.006, 0.004);
+  const food = [PAL.orange, PAL.sage, PAL.mustard, PAL.red];
+  for (let i = 0; i < 3; i++) {
+    const y = h * (0.3 + i * 0.2);
+    block(open, w * 0.8, 0.012, 0.02, '#bcd3e0', cx, y, front + 0.016, 0.003);
+    for (let k = 0; k < 2; k++) block(open, 0.09, 0.12, 0.03, food[(i + k) % 4]!, cx - w * 0.2 + k * w * 0.32, y + 0.012, front + 0.03, 0.01);
+  }
+  const hinge = new THREE.Group();
+  hinge.position.set(box.min.x, 0, front);
+  hinge.rotation.y = -1.9;
+  block(hinge, w, h * 0.98, 0.05, PAL.white, w / 2, 0.01, 0.025, 0.02);
+  open.add(hinge);
+  open.visible = false;
+  open.userData.dynamic = true;
+  g.add(open);
+  return open;
+}
+
 const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   desk: (g, _w, _h, ctx, hooks) => deskModel(g, ctx, hooks, true),
   desk_back: (g, _w, _h, ctx, hooks) => deskModel(g, ctx, hooks, false),
   office_chair: (g, _w, _h, ctx, hooks) => chair(g, 0.5, 0.5, true, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal, ctx, hooks),
   office_chair_front: (g, _w, _h, ctx, hooks) => chair(g, 0.5, 0.5, false, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal, ctx, hooks),
-  bookshelf: (g, w, _h, ctx) => {
+  bookshelf: (g, w, _h, ctx, hooks) => {
+    // o livro que o dono tira da estante (fica inclinado, um pouco para fora)
+    const book = block(g, 0.05, 0.24, 0.18, PAL.red, w * 0.72, 0.6, 0.38, 0.008);
+    book.rotation.z = 0.12;
+    book.userData.dynamic = true;
+    hooks.use = { kind: 'shelf', part: book };
     if (place(g, 'craftedBookcase', { w: w - 0.10, h: 1.52, d: 0.42 }, w / 2, 0, 0.24)) return;
     const wood = mat(PAL.wood);
     block(g, w - 0.08, 1.7, 0.36, wood, w / 2, 0, 0.22, 0.02);
@@ -305,7 +390,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
       if (handle) cabinet.traverse((obj) => {
         if (obj.userData.drawer !== true) return;
         obj.userData.dynamic = true;
-        hooks.drawer = { obj, handle, z: obj.position.z, until: 0 };
+        hooks.drawer = { obj, handle, z: obj.position.z };
       });
       return;
     }
@@ -454,8 +539,9 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.6, 0.3, 0.4, PAL.white, 0.5, 0.63, 0.4, 0.03);
     block(g, 0.36, 0.22, 0.02, PAL.black, 0.42, 0.67, 0.61, 0.01);
   },
-  fridge: (g) => {
-    if (place(g, 'fridge', { h: 1.7 }, 0.5, 0, 0.45)) return;
+  fridge: (g, _w, _h, _ctx, hooks) => {
+    if (place(g, 'fridge', { h: 1.7 }, 0.5, 0, 0.45)) return void (hooks.use = { kind: 'fridge', part: fridgeOpen(g) });
+    hooks.use = { kind: 'fridge', part: fridgeOpen(g) };
     block(g, 0.78, 1.65, 0.7, PAL.white, 0.5, 0, 0.45, 0.06);
     block(g, 0.74, 0.015, 0.02, PAL.grey, 0.5, 1.05, 0.81, 0.005);
     block(g, 0.04, 0.3, 0.04, PAL.metal, 0.82, 1.15, 0.82, 0.015);
@@ -737,28 +823,16 @@ const WALL: Partial<Record<FurnitureKind, Builder>> = {
     });
     put(g, plane(w - 0.7, 0.68), m, 0, 0.9, 0.042, { shadow: false });
   },
-  tv: (g, w) => {
+  tv: (g, w, _h, _ctx, hooks) => {
     block(g, w - 0.2, 0.95, 0.06, PAL.black, 0, 0.7, 0.03, 0.02);
-    put(g, plane(w - 0.3, 0.86), texMat('tv', 128, 72, (c, cw, ch) => {
-      const gr = c.createLinearGradient(0, 0, 0, ch);
-      gr.addColorStop(0, '#3a8f4f');
-      gr.addColorStop(1, '#2a6b3b');
-      c.fillStyle = gr;
-      c.fillRect(0, 0, cw, ch);
-      c.strokeStyle = 'rgba(255,255,255,.7)';
-      c.lineWidth = 1.5;
-      c.strokeRect(6, 6, cw - 12, ch - 12);
-      c.beginPath();
-      c.moveTo(cw / 2, 6);
-      c.lineTo(cw / 2, ch - 6);
-      c.stroke();
-      c.beginPath();
-      c.arc(cw / 2, ch / 2, 10, 0, Math.PI * 2);
-      c.stroke();
-    }, 0.9), 0, 0.745, 0.062, { shadow: false });
+    const screen = put(g, plane(w - 0.3, 0.86), tvScreen(1), 0, 0.745, 0.062, { shadow: false });
+    screen.userData.dynamic = true;
+    hooks.use = { kind: 'tv', part: screen };
   },
-  light_switch: (g) => {
-    block(g, 0.1, 0.14, 0.02, PAL.white, 0, 0.75, 0.01, 0.01);
+  light_switch: (g, _w, _h, _ctx, hooks) => {
+    const plate = block(g, 0.1, 0.14, 0.02, PAL.white, 0, 0.75, 0.01, 0.01);
+    plate.userData.dynamic = true;
+    hooks.use = { kind: 'switch', part: plate };
   },
   elevator: (g, w, _h, _ctx, hooks) => {
     const steel = mat('#9aa3ad', { metal: 0.7, rough: 0.32 });

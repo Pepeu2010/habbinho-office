@@ -18,8 +18,10 @@ do meio (0.**3**.0).
   sala e limita o zoom. O dono pode caminhar até a praça e os funcionários podem passear no jardim lateral.
 - **Pausas no 3D.** Pingue-pongue com raquetes, bola e placar, leitura e alongamento com animação própria, fliperama
   com tela animada, vapor na cafeteira e luminárias que acendem ao escurecer.
-- **Móveis interativos.** A estante de fichários agora tem nichos abertos. No modo Passear, pressione E perto do
-  armário para abrir a gaveta com material de escritório.
+- **Móveis interativos.** A estante de fichários agora tem nichos abertos. No modo Passear, pressione E perto de um
+  objeto para usá-lo. A gaveta do armário e a geladeira abrem e ficam abertas. A TV liga, troca entre três canais e
+  desliga por um menu curto. O livro vermelho sai da estante e o seu boneco lê sentado até devolvê-lo. O abajur e o
+  interruptor acendem e apagam as luzes da sala. Esse estado vale só para a sua visão 3D e some ao recarregar.
 - **Funcionários do OpenBot Desktop.** O escritório local recria os perfis do OpenBot instalado a partir do banco em
   modo de leitura e envia tarefas pela CLI oficial quando o agente habilita `Local scripts`.
 

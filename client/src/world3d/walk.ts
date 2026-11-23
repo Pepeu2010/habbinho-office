@@ -116,6 +116,9 @@ export class WalkMode {
   private owner = loadMe();
   private drinkUntil = 0;
   private drinkFurnitureId?: string;
+  private drinkHeld: HeldItem = 'none';
+  /** Livro da estante na mão (sentado num sofá ou poltrona, o dono lê). */
+  book = false;
   private cameraArm = Infinity;
   private ride: { to: SpotDef; t0: number; phase: 'in' | 'out' } | null = null;
   private calledAt = 0;
@@ -212,7 +215,7 @@ export class WalkMode {
       if (d < 0.05) this.path.splice(0, 2);
       else {
         [this.x, this.z] = slide(this.cell(sim), this.x, this.z, (dx / d) * sp, (dz / d) * sp);
-        ch.setPose(shift ? 'run' : 'walk', now < this.drinkUntil ? ch.held : 'none');
+        ch.setPose(shift ? 'run' : 'walk', this.held(now));
         ch.dir = dirOf(dx, dz);
       }
     } else if ((f || s) && !ch.atSpot) {
@@ -226,19 +229,23 @@ export class WalkMode {
       const dx = ((fx * f + rx * s) / len) * sp;
       const dz = ((fz * f + rz * s) / len) * sp;
       [this.x, this.z] = slide(this.cell(sim), this.x, this.z, dx, dz);
-      ch.setPose(shift ? 'run' : 'walk', now < this.drinkUntil ? ch.held : 'none');
+      ch.setPose(shift ? 'run' : 'walk', this.held(now));
       ch.dir = dirOf(dx, dz);
     } else if (!ch.atSpot) {
-      ch.setPose(now < this.drinkUntil ? 'drink' : 'stand', now < this.drinkUntil ? ch.held : 'none');
+      ch.setPose(now < this.drinkUntil ? 'drink' : 'stand', this.held(now));
       ch.dir = dirOf(-Math.sin(this.yaw), -Math.cos(this.yaw));
     }
-    if (now >= this.drinkUntil && ch.held !== 'none' && !ch.atSpot) ch.setPose(ch.pose, 'none');
+    if (!ch.atSpot && ch.held !== this.held(now)) ch.setPose(ch.pose, this.held(now));
     // elevador chamado: as portas fecham sozinhas depois de um tempo
     if (this.calledElevator >= 0 && now - this.calledAt > 6000) {
       sim.elevators[this.calledElevator]?.release(ME, now);
       this.calledElevator = -1;
     }
     this.place();
+  }
+
+  private held(now: number): HeldItem {
+    return now < this.drinkUntil ? this.drinkHeld : this.book ? 'book' : 'none';
   }
 
   private place(): void {
@@ -312,13 +319,16 @@ export class WalkMode {
         ch.sortY = s.sortY ?? null;
         ch.atSpot = s.id;
         const typing = TYPE_KINDS.includes(s.kind);
-        ch.setPose((typing ? 'type' : 'sit') as Pose, typing || now >= this.drinkUntil ? 'none' : ch.held);
+        if (typing) ch.setPose('type', 'none');
+        else if (this.book && now >= this.drinkUntil) ch.setPose('read', 'book');
+        else ch.setPose('sit' as Pose, this.held(now));
         return null;
       }
       case 'drink': {
         const d = DRINK[t.spot!.kind]!;
         this.drinkUntil = now + 9000;
         this.drinkFurnitureId = t.spot?.furnitureId;
+        this.drinkHeld = d.held;
         ch.setPose('drink', d.held);
         return null;
       }

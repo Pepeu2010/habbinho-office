@@ -142,6 +142,49 @@ await wait(500);
 const sel = await page.evaluate(() => window.habblaud.world.getSelection());
 step('cumprimentar abre a gaveta do agente', !!agentId && sel?.id === agentId, `"${p4}"`);
 
+// objetos vivos: pega o livro da estante e abre o menu da TV
+const useAt = (kind) => page.evaluate((kind) => {
+  const w = window.habblaud.world;
+  const g = w.debug.sim().building.grid;
+  for (const area of w.debug.building.areas.values()) {
+    if (!area.group.visible) continue;
+    for (const hooks of area.hooks.values()) {
+      if (hooks.use?.kind !== kind) continue;
+      const p = hooks.use.part.getWorldPosition(hooks.use.part.position.clone());
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        const tx = Math.floor(p.x) + dx, tz = Math.floor(p.z) + dz;
+        if (!g.walkable(tx, tz)) continue;
+        const u = w.debug.building.nearbyUsable(tx + 0.5, tz + 0.5);
+        if (!u || Math.abs(Math.hypot(tx + 0.5 - p.x, tz + 0.5 - p.z) - u.d) > 0.01) continue;
+        w.debug.walk.x = tx + 0.5;
+        w.debug.walk.z = tz + 0.5;
+        return true;
+      }
+    }
+  }
+  return false;
+}, kind);
+if (await useAt('shelf')) {
+  await wait(300);
+  const p5 = await prompt();
+  await key('e');
+  await wait(300);
+  step('pegar um livro da estante (E)', (await page.evaluate(() => window.habblaud.world.debug.walk.book)) === true, `"${p5}"`);
+  await key('e');
+  await wait(300);
+  step('devolver o livro (E)', (await page.evaluate(() => window.habblaud.world.debug.walk.book)) === false);
+} else console.log('--   sem estante alcançável neste andar');
+if (await useAt('tv')) {
+  await wait(300);
+  await key('e');
+  await wait(300);
+  const items = await page.$$eval('.w3d-walk__floors:not([hidden]) button', (b) => b.map((x) => x.textContent));
+  step('menu da TV (E)', items.length === 2, items.join(' / '));
+  await key('e');
+  await wait(200);
+  step('E fecha o menu', (await page.$$('.w3d-walk__floors:not([hidden])')).length === 0);
+} else console.log('--   sem TV alcançável neste andar');
+
 await key('v');
 await wait(700);
 step('V troca para primeira pessoa', (await page.evaluate(() => window.habblaud.world.getWalkMode())) === 'first');

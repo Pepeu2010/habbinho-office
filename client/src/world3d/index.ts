@@ -14,7 +14,7 @@ import { Sim } from '../world/sim/sim';
 import { VISITOR_ID } from '../world/sim/visitor';
 import { SoundCues } from '../world/sound-cues';
 import { CharacterAssets, NatureKit } from './assets';
-import { Building3D } from './building';
+import { Building3D, type UseAction } from './building';
 import { DIST_MAX, DIST_MIN, StrategicCamera } from './camera';
 import { Avatars } from './characters';
 import { Fx } from './fx';
@@ -109,17 +109,25 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     // passeando, a lista e o feed saem da frente (voltam ao sair)
     document.body.classList.toggle('w3d-walking', !!walk.view);
     if (!m) {
-      drawerTarget = null;
+      useTarget = null;
       hud.prompt(null);
       if (was) overview(true);
     }
     if (was !== walk.view) walkCbs.forEach((cb) => cb(walk.view));
   };
   let walkTarget: ReturnType<WalkMode['target']> = null;
-  let drawerTarget: ReturnType<Building3D['nearbyDrawer']> = null;
+  let useTarget: ReturnType<Building3D['nearbyUsable']> = null;
+  const use = (a: UseAction) => {
+    a.run();
+    if (a.book !== undefined) walk.book = a.book;
+  };
   const walkInteract = () => {
     const now = Date.now();
-    if (drawerTarget && walk.active) return building.toggleDrawer(drawerTarget.id, now);
+    if (hud.menuOpen) return hud.menu(null);
+    if (useTarget && walk.active) {
+      const { actions } = useTarget;
+      return actions.length > 1 ? hud.menu(actions.map((a) => ({ label: a.label, run: () => use(a) }))) : use(actions[0]!);
+    }
     if (walkTarget?.kind === 'elevator' && !hud.floorsOpen) return hud.floors(true);
     const agent = walk.interact(sim, now, walkTarget);
     if (agent && sim.chars.has(agent)) setSelection({ type: 'agent', id: agent });
@@ -581,8 +589,12 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
         }
         walkTarget = walk.target(sim, near);
         if (walkTarget?.kind !== 'elevator' && hud.floorsOpen) hud.floors(false);
-        drawerTarget = walkTarget ? null : building.nearbyDrawer(walk.x, walk.z, real);
-        hud.prompt(walkTarget?.label ?? (drawerTarget ? drawerTarget.open ? tr('Fechar gaveta') : tr('Abrir gaveta') : null));
+        // objeto (TV, gaveta, estante...) vale mais que um lugar mais longe; sentado ou perto de um agente, não
+        useTarget = walkTarget?.kind === 'stand' || walkTarget?.kind === 'agent' ? null : building.nearbyUsable(walk.x, walk.z);
+        const spot = walkTarget?.spot;
+        if (useTarget && spot && Math.hypot(spot.tx + 0.5 - walk.x, spot.ty + 0.5 - walk.z) < useTarget.d) useTarget = null;
+        if (!useTarget && hud.menuOpen) hud.menu(null);
+        hud.prompt(useTarget?.label ?? walkTarget?.label ?? null);
       }
       // efeitos pedidos pela simulação (os mesmos do 2D): consumidos aqui, senão a lista só cresce
       for (const e of sim.effects) {
