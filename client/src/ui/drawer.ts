@@ -560,7 +560,7 @@ class AgentView {
     setText(this.accEmail, accSub);
     setHidden(this.accEmail, !accSub);
     setText(this.roomName, room?.name ?? a.roomId);
-    setTitle(this.roomBtn, room ? tr('{0}\nClique para ver a sala', [room.path]) : '');
+    setTitle(this.roomBtn, room ? tr('{0}\nClique para ver a sala', [room.workspace?.name ?? room.path]) : '');
     setHidden(this.gone, !!live);
     this.el.classList.toggle('is-gone', !live);
 
@@ -956,8 +956,8 @@ class RoomView {
     const r = this.last;
     if (!r) return;
     setText(this.name, r.name);
-    setText(this.path, shortPath(r.path));
-    setTitle(this.path, r.path);
+    setText(this.path, r.workspace?.label ?? shortPath(r.path));
+    setTitle(this.path, r.workspace?.name ?? r.path);
     try {
       setStyleVar(this.swatch, '--room', roomTheme(r.seed).accent);
     } catch {

@@ -84,6 +84,10 @@ export interface MessageRegistryOptions {
   codex?: CodexDeliveryOptions;
   /** Agentes locais (server/local-agents): a mensagem entra direto na conversa; ausente = eles não recebem. */
   local?: LocalDelivery;
+  openbot?: {
+    canSend(agentId: string): boolean;
+    send(agentId: string, text: string, deliveryId: string): Promise<boolean>;
+  };
   now?: () => number;
   /** Intervalo do relógio interno (start). */
   tickMs?: number;
@@ -164,6 +168,7 @@ function unavailableReason(a: AgentInfo, reachable: boolean): string | undefined
     if (a.provider === 'codex') return ERR_CODEX_UNAVAILABLE;
     if (a.provider === 'opencode') return tr('o escritório ainda não manda mensagens para o OpenCode');
     if (a.provider === 'local') return tr('agentes locais desligados neste servidor');
+    if (a.provider === 'openbot') return tr('abra o OpenBot e ative Local scripts para este funcionário');
     return tr('a sessão não está com o plugin habblaud-mensagens conectado (npm run mod:install)');
   }
   return undefined;
@@ -248,6 +253,7 @@ export class MessageRegistry {
     for (const id of this.seen.keys()) if (this.canMessage(id)) out.add(id);
     if (this.codexAvailable()) for (const a of this.opts.office.list()) if (a.provider === 'codex' && a.kind === 'main' && present(a)) out.add(a.id);
     if (this.opts.local) for (const a of this.opts.office.list()) if (a.provider === 'local' && a.kind === 'main' && present(a) && this.opts.local.has(a.id)) out.add(a.id);
+    if (this.opts.openbot) for (const a of this.opts.office.list()) if (a.provider === 'openbot' && this.canMessage(a.id)) out.add(a.id);
     return out;
   }
 
@@ -255,6 +261,7 @@ export class MessageRegistry {
     const a = this.opts.office.get(agentId);
     if (a?.provider === 'codex') return this.codexAvailable() && present(a) && a.kind === 'main';
     if (a?.provider === 'local') return !!this.opts.local?.has(agentId) && present(a) && a.kind === 'main';
+    if (a?.provider === 'openbot') return !!this.opts.openbot?.canSend(agentId) && present(a) && a.kind === 'main';
     if (a?.provider === 'opencode') return false;
     const at = this.seen.get(agentId);
     if (at === undefined || this.now() - at >= this.presenceMs) return false;
@@ -297,6 +304,14 @@ export class MessageRegistry {
       else this.fail(entry, now, truncate(r.error, ERROR_MAX));
       return { message: { ...entry.msg } };
     }
+    if (real?.provider === 'openbot') {
+      const resolve = (sent: boolean) => {
+        if (isFinal(entry)) return;
+        if (sent) this.finish(entry, 'delivered', this.now());
+        else this.fail(entry, this.now(), tr('O OpenBot não confirmou a entrega.'));
+      };
+      void this.opts.openbot!.send(agentId, text, id).then(resolve, () => resolve(false));
+    }
     const out = { ...entry.msg };
     if (entry.codex) this.pumpCodex();
     return { message: out };
@@ -320,7 +335,7 @@ export class MessageRegistry {
     // O plugin é do Claude Code: agentes do Codex nunca recebem por aqui.
     const agent = this.opts.office
       .list()
-      .find((a) => a.kind === 'main' && a.provider !== 'codex' && a.sessionId === session && (!account || a.account === account) && present(a));
+      .find((a) => a.kind === 'main' && a.provider !== 'codex' && a.provider !== 'openbot' && a.sessionId === session && (!account || a.account === account) && present(a));
     if (!agent) return [];
 
     const now = this.now();

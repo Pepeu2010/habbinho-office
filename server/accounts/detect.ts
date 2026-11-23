@@ -210,7 +210,8 @@ function scanClaudeDirs(env: NodeJS.ProcessEnv, home: string): { dirs: string[];
 
 const ALIAS_RE = /^\s*alias\s+([A-Za-z0-9_][A-Za-z0-9_.-]*)=(?:'([^']*)'|"((?:[^"\\]|\\.)*)")\s*(?:#.*)?$/;
 /** O que identifica o alias de cada ferramenta: o comando invocado e a variável com a pasta da conta. */
-const ALIAS_TOOLS: Record<Exclude<Provider, 'opencode' | 'local'>, { invokes: RegExp; dir: RegExp }> = {
+type ShellAliasProvider = Extract<Provider, 'claude' | 'codex'>;
+const ALIAS_TOOLS: Record<ShellAliasProvider, { invokes: RegExp; dir: RegExp }> = {
   claude: {
     invokes: /(?:^|[\s;&|(])(?:[\w.~/-]*\/)?claude(?=$|[\s;&|)])/,
     dir: /\bCLAUDE_CONFIG_DIR=(?:"([^"]*)"|'([^']*)'|([^\s;&|]+))/,
@@ -225,7 +226,7 @@ const ALIAS_TOOLS: Record<Exclude<Provider, 'opencode' | 'local'>, { invokes: Re
  * Extrai os aliases de shell que invocam a ferramenta (`claude` ou `codex`), com a pasta da conta (CLAUDE_CONFIG_DIR
  * ou CODEX_HOME). Considera SOMENTE linhas `alias NOME='...'` (ou com aspas duplas); qualquer outra linha é ignorada.
  */
-export function parseToolAliases(text: string, home: string, tool: Exclude<Provider, 'opencode' | 'local'>): ClaudeAlias[] {
+export function parseToolAliases(text: string, home: string, tool: ShellAliasProvider): ClaudeAlias[] {
   const { invokes, dir: dirRe } = ALIAS_TOOLS[tool];
   const out: ClaudeAlias[] = [];
   for (const line of text.split(/\r?\n/)) {
@@ -246,7 +247,7 @@ export function parseClaudeAliases(text: string, home: string): ClaudeAlias[] {
 }
 
 /** Lê os aliases da ferramenta (padrão: o `claude`) dos arquivos de inicialização do shell do usuário. */
-export function readShellAliases(home: string, tool: Exclude<Provider, 'opencode' | 'local'> = 'claude'): ClaudeAlias[] {
+export function readShellAliases(home: string, tool: ShellAliasProvider = 'claude'): ClaudeAlias[] {
   const out: ClaudeAlias[] = [];
   for (const f of RC_FILES) {
     try {

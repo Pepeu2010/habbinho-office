@@ -112,7 +112,7 @@ const CODEX_CHIP_BG = '#161b26';
 const CODEX_BADGE = 'CODEX';
 /** Selo da ferramenta na etiqueta: "CODEX" ou "OPENCODE" (Claude Code, nenhum). */
 function toolBadge(provider: string | undefined): string | undefined {
-  return provider === 'codex' ? CODEX_BADGE : provider === 'opencode' ? 'OPENCODE' : provider === 'local' ? 'LOCAL' : undefined;
+  return provider === 'codex' ? CODEX_BADGE : provider === 'opencode' ? 'OPENCODE' : provider === 'openbot' ? 'OPENBOT' : provider === 'local' ? 'LOCAL' : undefined;
 }
 
 /** Octógono "em degrau" (um quadrado de cantos cortados, como um pixel arredondado). */

@@ -20,6 +20,8 @@ do meio (0.**3**.0).
   com tela animada, vapor na cafeteira e luminárias que acendem ao escurecer.
 - **Móveis interativos.** A estante de fichários agora tem nichos abertos. No modo Passear, pressione E perto do
   armário para abrir a gaveta com material de escritório.
+- **Funcionários do OpenBot Desktop.** O escritório local recria os perfis do OpenBot instalado a partir do banco em
+  modo de leitura e envia tarefas pela CLI oficial quando o agente habilita `Local scripts`.
 
 - **Acabamento aconchegante no escritório 3D.** Pisos de madeira clara, lambris, tapetes com bordas trançadas,
   janelas ilustradas, poltronas estofadas e luz mais quente nas salas.
@@ -88,6 +90,8 @@ do meio (0.**3**.0).
 
 ### Corrigido
 
+- As salas dos perfis do OpenBot usam nomes legíveis no mapa, na barra lateral e nos detalhes. Projetos com pastas
+  próprias e nomes definidos pelo usuário continuam com seus nomes.
 
 - Escritório 3D: etiquetas escondidas (de quem saiu da tela) continuavam paradas na última posição.
 

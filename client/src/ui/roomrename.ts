@@ -69,7 +69,7 @@ export class RoomRenamer {
     this.roomId = roomId;
     this.original = room.name;
     this.input.value = room.name;
-    setText(this.hint, tr('Enter salva · Esc cancela · vazio volta a “{0}”', [room.path.split(/[\\/]/).filter(Boolean).pop() ?? room.path]));
+    setText(this.hint, tr('Enter salva · Esc cancela · vazio volta a “{0}”', [room.workspace?.name ?? room.path.split(/[\\/]/).filter(Boolean).pop() ?? room.path]));
     this.hint.classList.remove('is-error');
     this.el.hidden = false;
     const w = this.el.offsetWidth || 260;

@@ -98,6 +98,9 @@ export interface TranscriptSummary {
 
 export interface MainInput {
   id: string;
+  /** Nome fornecido por uma fonte com perfis persistentes, abaixo de uma edição do usuário. */
+  sourceName?: string;
+  workspace?: RoomInfo['workspace'];
   /** Ferramenta do agente (AgentInfo.provider); ausente = 'claude'. Os subagentes herdam a do principal. */
   provider?: Provider;
   account: string;
@@ -196,7 +199,7 @@ const byStart = (a: ShellJob, b: ShellJob) => a.startedAt - b.startedAt || a.id.
 
 export class Office {
   private agents = new Map<string, AgentRecord>();
-  private rooms = new Map<string, { path: string; createdAt: number }>();
+  private rooms = new Map<string, Pick<RoomInfo, 'path' | 'createdAt' | 'workspace'>>();
   private slots = new SlotAllocator(SLOT_COOLDOWN_MS);
   private roomNames = new Map<string, string>();
   private feed: FeedItem[] = [];
@@ -317,13 +320,14 @@ export class Office {
     const now = this.now();
     const existing = this.agents.get(p.id);
     if (existing) {
+      if (p.workspace && existing.info.roomId === normalizeCwd(p.cwd)) this.ensureRoom(existing.info.roomId, now, p.workspace);
       // Sessão que voltou durante o período de graça.
       delete existing.removeAt;
       this.setStatus(p.id, p.status, p.waitingFor);
       return;
     }
     const roomId = normalizeCwd(p.cwd);
-    this.ensureRoom(roomId, now);
+    this.ensureRoom(roomId, now, p.workspace);
     const chosen = this.roomCharacter(roomId, p.id, p.sessionId);
     // A mesma sessão retomada noutro processo (ex.: "Assumir aqui") mantém o nome, mesmo com o processo antigo
     // ainda saindo do escritório.
@@ -332,7 +336,7 @@ export class Office {
       id: p.id,
       kind: 'main',
       roomId,
-      name: person.name,
+      name: chosen?.name ?? p.sourceName ?? person.name,
       look: person.look,
       role: p.role,
       sessionId: p.sessionId,
@@ -961,6 +965,7 @@ export class Office {
         id,
         name: this.roomName(id),
         path: r.path,
+        ...(r.workspace ? { workspace: r.workspace } : {}),
         slot: this.slots.slotOf(id) ?? 0,
         seed: hash32(id),
         createdAt: r.createdAt,
@@ -1038,9 +1043,16 @@ export class Office {
     return out;
   }
 
-  private ensureRoom(roomId: string, now: number): void {
-    if (this.rooms.has(roomId)) return;
-    this.rooms.set(roomId, { path: roomId, createdAt: now });
+  private ensureRoom(roomId: string, now: number, workspace?: RoomInfo['workspace']): void {
+    const existing = this.rooms.get(roomId);
+    if (existing) {
+      if (workspace && (workspace.name !== existing.workspace?.name || workspace.label !== existing.workspace?.label)) {
+        existing.workspace = workspace;
+        this.refreshRoomNames();
+      }
+      return;
+    }
+    this.rooms.set(roomId, { path: roomId, createdAt: now, workspace });
     this.recomputeRoomNames();
     this.notice('room', roomId, 'info', tr('🏗️ Nova sala: {0}', [this.roomName(roomId)]), roomId);
   }
@@ -1050,8 +1062,8 @@ export class Office {
     for (const r of this.demoSnap?.rooms ?? []) paths.set(r.id, r.path);
     this.roomNames = roomDisplayNames(paths);
     for (const [id, path] of paths) {
-      const alias = this.deps.roomAlias?.(path);
-      if (alias) this.roomNames.set(id, alias);
+      const name = this.deps.roomAlias?.(path) ?? this.rooms.get(id)?.workspace?.name;
+      if (name) this.roomNames.set(id, name);
     }
   }
 

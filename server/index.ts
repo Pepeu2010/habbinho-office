@@ -38,6 +38,7 @@ import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
 import { hasOpencodeDb, opencodeDataDir, OpencodeSource, sqliteOpener } from './sources/opencode/source';
+import { discoverOpenBot, OpenBotSource } from './sources/openbot';
 import { llmConfig } from './local-agents/llm';
 import { LocalAgentRuntime } from './local-agents/runtime';
 import { createBuildReader, readBuildInfo } from './build';
@@ -146,6 +147,9 @@ const opencodeDir = opencodeDataDir(process.env, config.home);
 const opencodeOpen = config.opencode && hasOpencodeDb(opencodeDir) ? sqliteOpener() : undefined;
 const opencode = opencodeOpen ? new OpencodeSource({ accounts, office, dir: opencodeDir, open: opencodeOpen }) : undefined;
 if (opencode) agents.add(opencode);
+const openbotOptions = config.terminal && !config.inDocker ? discoverOpenBot(process.env) : undefined;
+const openbot = openbotOptions ? new OpenBotSource(openbotOptions, accounts, office) : undefined;
+if (openbot) agents.add(openbot);
 // Agentes com modelos locais (local-agents/): rodam aqui, leem arquivos do projeto e conversam com o Ollama/LM Studio
 // pelo loopback. Só com a trava do terminal (acesso local) e fora do Docker; HABBLAUD_LOCAL_AGENTS=0 desliga.
 const localAgentsOff = !config.localAgents ? tr('desligado (HABBLAUD_LOCAL_AGENTS=0)') : config.inDocker ? tr('indisponível no Docker (rode com npm start)') : !config.terminal ? tr('só com acesso local (mesma trava do terminal)') : undefined;
@@ -288,6 +292,7 @@ const messages = config.messages
         homeOf: (account) => accounts.entriesOf('codex').find((e) => e.id === account)?.detected.configDir,
       },
       local: localAgents ? { has: (id) => localAgents.has(id), send: (id, text) => localAgents.send(id, text) } : undefined,
+      openbot,
     })
   : undefined;
 late.messages = messages;

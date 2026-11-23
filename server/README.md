@@ -314,6 +314,16 @@ Regras:
   `404`.
 - Personagem sem uso há 60 dias some, como os nomes.
 
+## OpenBot Desktop
+
+No Windows, com acesso local, o Habblaud detecta o banco do OpenBot da Nightly Labs em
+`%APPDATA%/OpenBot/openbot.db`. O leitor usa o esquema da versão [0.75.0](https://github.com/nightly-labs/openbot/tree/v0.75.0)
+em modo somente leitura. Os perfis têm identidade estável e aparecem nas salas dos respectivos projetos.
+
+Para mandar uma tarefa pela gaveta, abra o OpenBot e habilite **Local scripts** no agente escolhido. O Habblaud
+descobre os destinatários elegíveis com a CLI oficial e confirma a entrega quando recebe o identificador da tarefa.
+Use `HABBLAUD_OPENBOT=0` para desligar ou `HABBLAUD_OPENBOT_DB` e `HABBLAUD_OPENBOT_CLI` para instalar em caminhos diferentes.
+
 ## Codex
 
 Fontes de agentes (`sources/source.ts`): `SourceSet` junta a do Claude Code (`ClaudeWatcher`) e, quando há pastas do

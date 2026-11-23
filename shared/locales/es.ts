@@ -8,6 +8,7 @@ export const ES: Readonly<Record<string, string>> = {
   "Edição de imagens": "Edición de imágenes",
   "Pesquisa": "Investigación",
   "Redes sociais": "Redes sociales",
+  "Sala do OpenBot": "Sala de OpenBot",
   // client/src/main.ts
   "Escritório virtual em pixel art que mostra, em tempo real, o que seus agentes do Claude Code estão fazendo.": "Oficina virtual en pixel art que muestra, en tiempo real, lo que están haciendo tus agentes de Claude Code.",
 
@@ -3390,6 +3391,10 @@ export const ES: Readonly<Record<string, string>> = {
   "Escolha um nome válido.": "Elige un nombre válido.",
   "Não foi possível salvar o personagem neste navegador.": "No se pudo guardar el personaje en este navegador.",
   "Editar meu personagem": "Editar mi personaje",
+  "abra o OpenBot e ative Local scripts para este funcionário": "abre OpenBot y activa Local scripts para este empleado",
+  "O OpenBot não confirmou a entrega.": "OpenBot no confirmó la entrega.",
+  "responder no OpenBot": "responder en OpenBot",
+  "Não foi possível ler os perfis do OpenBot.": "No se pudieron leer los perfiles de OpenBot.",
   "📚 Lendo na biblioteca": "📚 Leyendo en la biblioteca",
   "☕ Pausa para café": "☕ Pausa para el café",
   "💤 Descansando": "💤 Descansando",
@@ -3397,6 +3402,9 @@ export const ES: Readonly<Record<string, string>> = {
   "🌿 Passeando no jardim": "🌿 Paseando por el jardín",
   "Fechar gaveta": "Cerrar cajón",
   "Abrir gaveta": "Abrir cajón",
+  "Abra o OpenBot e ative Local scripts no agente para receber tarefas daqui.": "Abre OpenBot y activa Local scripts en este agente para recibir tareas desde aquí.",
+  "A tarefa entra na fila do OpenBot. Enter envia; Shift+Enter quebra a linha.": "La tarea entra en la cola de OpenBot. Enter envía; Shift+Enter inserta una línea.",
+  "Aguardando a confirmação do OpenBot…": "Esperando la confirmación de OpenBot…",
   "Terceira pessoa": "Tercera persona",
   "Primeira pessoa": "Primera persona",
   "Vista de cima": "Vista desde arriba",

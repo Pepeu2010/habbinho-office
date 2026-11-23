@@ -15,7 +15,7 @@ export type AgentKind = 'main' | 'sub';
  * - claude: Claude Code;
  * - codex: OpenAI Codex (CLI `codex` e o app desktop, que gravam no mesmo CODEX_HOME).
  */
-export type Provider = 'claude' | 'codex' | 'opencode' | 'local';
+export type Provider = 'claude' | 'codex' | 'opencode' | 'local' | 'openbot';
 
 /**
  * Estado de alto nível de um agente — é o que dirige o comportamento do personagem.
@@ -195,6 +195,8 @@ export interface RoomInfo {
   name: string;
   /** Caminho completo do projeto. */
   path: string;
+  /** Nome padrão e legenda de um workspace criado automaticamente por uma integração. */
+  workspace?: { name: string; label: string };
   /**
    * Ordem de chegada da sala, atribuída pelo servidor e estável enquanto a sala existir (um slot liberado só é
    * reutilizado após um período de espera). O cliente usa só como ordem: no prédio, cada sala ocupa a primeira vaga

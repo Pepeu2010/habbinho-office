@@ -250,8 +250,8 @@ export class Sidebar implements UiComponent {
     const present = g.agents.filter((a) => a.status !== 'offline').length;
     setText(r.count, String(present));
     setTitle(r.count, plural(present, tr('agente'), tr('agentes')));
-    setText(r.path, shortPath(g.room.path));
-    setTitle(r.head, tr('{0}\nClique para ver a sala', [g.room.path]));
+    setText(r.path, g.room.workspace?.label ?? shortPath(g.room.path));
+    setTitle(r.head, tr('{0}\nClique para ver a sala', [g.room.workspace?.name ?? g.room.path]));
     setAttr(r.head, 'aria-label', tr('Sala {0}, {1}', [g.room.name, plural(present, tr('agente'), tr('agentes'))]));
     r.accs.sync(g.accounts.map((id) => this.ctx.account(id) ?? id));
     const selected = sel?.type === 'room' && sel.id === g.room.id;
