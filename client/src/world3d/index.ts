@@ -47,7 +47,7 @@ export interface World3DExtras {
   /** Números do último quadro, para depuração e benchmark. */
   stats(): { fps: number; calls: number; triangles: number; avatars: number };
   /** Acesso direto para depuração no console (window.habblaud.world.debug). */
-  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; npcs: () => Avatars; walk: WalkMode; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
+  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; npcs: () => Avatars; me: () => Avatars; walk: WalkMode; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
 }
 
 export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & World3DExtras {
@@ -814,6 +814,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       sim: () => sim,
       building,
       avatars: () => avatars,
+      me: () => meAvatars,
       npcs: () => npcAvatars,
       walk,
       view: (x, z, dist, pitch, yaw) => {

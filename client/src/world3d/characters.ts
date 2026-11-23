@@ -13,6 +13,7 @@ import { BONE, CHAR_H, collectionFor, defaultModelFor, type CharacterAssets, typ
 import { DESK_APPROACH, DESK_SEAT_H, SEAT_H, STOOL_H } from './furniture';
 import { PAL, cyl, mat, put, rbox, sphere } from './kit';
 import { ChibiFace, chibiKey, chibiMaterials, dressChibi, type Expression } from './chibi';
+import { collectionForLook, tintCollection } from './tint';
 import type { LookStore } from './looks';
 import { prop } from './props';
 
@@ -70,6 +71,8 @@ class Avatar implements AvatarView {
   private heldKind: HeldItem = 'none';
   private heldObj: THREE.Object3D | null = null;
   private materials: THREE.MeshStandardMaterial[] = [];
+  /** Geometrias próprias (repintadas) do boneco personalizado: descartadas ao trocar de modelo. */
+  private ownGeometry: THREE.BufferGeometry[] = [];
   private face: ChibiFace | null = null;
   private faceMat: THREE.Material | null = null;
   private rnd = Math.random;
@@ -105,12 +108,14 @@ class Avatar implements AvatarView {
 
   async ensureModel(assets: CharacterAssets, ch: Character): Promise<void> {
     const custom = ch.info.custom || ch.info.parts;
-    const wanted = custom ? 'habbinho' : collectionFor(ch.info.seed);
+    // personalizado: o boneco do elenco mais parecido com a aparência, repintado (tint.ts)
+    const look = custom ? collectionForLook(ch.appearance) : null;
+    const wanted = look ? `look:${look}` : collectionFor(ch.info.seed);
     if (this.modelId === wanted || this.loading || this.disposed) return;
     this.loading = true;
     try {
       const legacy = () => assets.load(defaultModelFor());
-      const model = await (custom ? legacy() : assets.loadCollection(ch.info.seed).catch(legacy));
+      const model = await (assets.loadCollection(ch.info.seed, look ?? undefined).catch(legacy));
       if (!this.disposed) this.setModel(assets, model, wanted);
     } catch {
       // Os dois modelos podem estar indisponíveis enquanto a página estiver offline.
@@ -125,6 +130,8 @@ class Avatar implements AvatarView {
       this.root.remove(this.body);
       this.mixer?.stopAllAction();
       for (const m of this.materials) m.dispose();
+      for (const g of this.ownGeometry) g.dispose();
+      this.ownGeometry = [];
       this.face?.dispose();
     }
     if ('rig' in model) assets.refreshClips(model);
@@ -145,6 +152,10 @@ class Avatar implements AvatarView {
       body.traverse((entry) => {
         const mesh = entry as THREE.SkinnedMesh;
         if (!mesh.isSkinnedMesh || Array.isArray(mesh.material)) return;
+        if (id.startsWith('look:')) {
+          mesh.geometry = mesh.geometry.clone();
+          this.ownGeometry.push(mesh.geometry);
+        }
         const own = (mesh.material as THREE.MeshStandardMaterial).clone();
         mesh.material = own;
         this.materials.push(own);
@@ -259,6 +270,10 @@ class Avatar implements AvatarView {
     // aparência do agente (a mesma do 2D) e identificação escolhida no editor 3D
     this.badge = looks.get(ch.id, ch.info).badge ?? '';
     const lk = chibiKey(ch.appearance);
+    if (!('rig' in this.model) && this.modelId.startsWith('look:') && lk !== this.lookKey) {
+      this.lookKey = lk;
+      tintCollection(this.body, this.modelId.slice(5) as Parameters<typeof tintCollection>[1], ch.appearance);
+    }
     if ('rig' in this.model && lk !== this.lookKey) {
       this.lookKey = lk;
       dressChibi(this.body, this.model.rig, ch.appearance, { body: this.materials[0]!, face: this.materials[1]! }, this.face ?? undefined);

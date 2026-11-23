@@ -55,7 +55,7 @@ export interface LoadedModel {
 }
 
 const COLLECTION = ['ceo', 'developer', 'designer', 'data-analyst', 'marketing', 'hr', 'support', 'finance', 'sales', 'intern'] as const;
-type CollectionId = typeof COLLECTION[number];
+export type CollectionId = typeof COLLECTION[number];
 
 export interface CollectionModel {
   scene: THREE.Object3D;
@@ -158,8 +158,8 @@ export class CharacterAssets {
   private gltfs = new Map<string, Promise<GLTF>>();
   private collection = new Map<CollectionId, Promise<CollectionModel>>();
 
-  loadCollection(seed: number): Promise<CollectionModel> {
-    const id = collectionFor(seed);
+  loadCollection(seed: number, look?: CollectionId): Promise<CollectionModel> {
+    const id = look ?? collectionFor(seed);
     let pending = this.collection.get(id);
     if (!pending) {
       pending = loadGltf(`${BASE}office-collection/characters/${id}.glb`).then(({ scene, animations }) => {
