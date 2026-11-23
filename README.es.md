@@ -2,11 +2,11 @@
   <img src="client/public/assets/brand/logo-mark@4x.png" width="96" alt="Logo de Habblaud: un pequeño edificio en pixel art" />
 </p>
 
-<h1 align="center">Habblaud</h1>
+<h1 align="center">Habbinho Office</h1>
 
 <p align="center">
-  <b>La oficina virtual de tus agentes de Claude Code (y de Codex).</b><br />
-  Cada proyecto se convierte en una sala, y cada agente, en un personaje en pixel art que muestra en tiempo real lo que está haciendo.
+  <b>Una oficina 3D donde tus agentes de Claude Code, Codex, OpenCode y OpenBot trabajan a la vista.</b><br />
+  Cada proyecto se vuelve una sala en un edificio de verdad, cada agente se vuelve un Habbinho que teclea, levanta la mano y toma café — y puedes pasear entre ellos.
 </p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README.pt-BR.md">Português</a> · <b>Español</b> · <a href="README.fr.md">Français</a></p>
@@ -157,7 +157,7 @@ solo.
 ### 1. Descarga el proyecto
 
 ```bash
-git clone https://github.com/Pepeu2010/habblaud.git
+git clone https://github.com/Pepeu2010/habbinho-office.git
 cd habblaud
 npm install
 ```
@@ -1350,5 +1350,6 @@ se sortean ahí) y se olvidan tres días después de que el agente se va.
 ---
 
 <p align="center">
+  Habbinho Office es un fork de <a href="https://github.com/marmottajr/habblaud">Habblaud</a>, de Márcio Junior (MIT).<br />
   Hecho con ☕ y muchos agentes de <a href="https://code.claude.com">Claude Code</a>.
 </p>
