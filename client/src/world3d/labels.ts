@@ -40,10 +40,10 @@ export class Labels {
   }
 
   /** `npcs`: personagens ambientais (só um rótulo "Visitante", sem balão: não são agentes). */
-  update(sim: Sim, avatars: (id: string) => AvatarView | undefined, camera: THREE.Camera, w: number, h: number, now: number, opts: WorldOptions, selected: string | null, hovered: string | null, npcs: Iterable<AvatarView> = []): void {
+  update(sim: Sim, avatars: (id: string) => AvatarView | undefined, camera: THREE.Camera, w: number, h: number, now: number, opts: WorldOptions, selected: string | null, hovered: string | null, npcs: Iterable<AvatarView> = [], panorama = false): void {
     const seen = new Set<string>();
     const npcIds = new Set<string>();
-    {
+    if (!panorama) {
       for (const av of npcs) {
         npcIds.add(av.id);
         if (!opts.showNames || !av.visible || !this.place(av, camera, w, h)) continue;
@@ -57,7 +57,31 @@ export class Labels {
         t.el.hidden = false;
       }
     }
+    if (panorama && opts.showNames) {
+      const active = new Map<string, number>();
+      for (const ch of sim.chars.values()) {
+        if (!ch.gone && !ch.leaving && ch.info.status !== 'offline') active.set(ch.info.roomId, (active.get(ch.info.roomId) ?? 0) + 1);
+      }
+      for (const room of sim.rooms.values()) {
+        if (!room.present || !active.has(room.id)) continue;
+        const { x, y, w: width, h: depth } = room.layout.rect;
+        this.v.set(x + width / 2, 1.28, y + depth * 0.36).project(camera);
+        if (Math.abs(this.v.x) > 1 || Math.abs(this.v.y) > 1 || Math.abs(this.v.z) > 1) continue;
+        const id = `room:${room.id}`;
+        seen.add(id);
+        const t = this.tags.get(id) ?? this.make(id);
+        const name = `${room.info.name} · ${active.get(room.id)}`;
+        if (t.nameText !== name) {
+          t.nameText = name;
+          t.name.textContent = name;
+          t.el.classList.add('is-room');
+        }
+        t.el.style.transform = `translate3d(${((this.v.x + 1) * w / 2).toFixed(1)}px, ${((1 - this.v.y) * h / 2).toFixed(1)}px, 0)`;
+        t.el.hidden = false;
+      }
+    }
     for (const ch of sim.chars.values()) {
+      if (panorama && ch.id !== selected && ch.id !== hovered && ch.mode !== 'wait') continue;
       const av = avatars(ch.id);
       if (!av || !av.visible) continue;
       this.v.copy(av.head).project(camera);
@@ -75,7 +99,7 @@ export class Labels {
         t.nameText = nameText;
         t.name.textContent = nameText;
       }
-      t.name.hidden = !opts.showNames && ch.id !== selected && ch.id !== hovered;
+      t.name.hidden = (panorama || !opts.showNames) && ch.id !== selected && ch.id !== hovered;
       const badge = av.badge ?? '';
       if (badge !== t.badgeText) {
         t.badgeText = badge;

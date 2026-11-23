@@ -12,6 +12,40 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Dono do escritório.** Editor com prévia 3D e controles de nome, cabelo, pele, roupa e acessórios para o personagem
+  que você usa no modo Passear. O visual fica salvo neste navegador.
+- **Campus 3D.** Terreno em forma de maquete com praça, bancos, paraciclos e lago. A visão geral agrupa os nomes por
+  sala e limita o zoom. O dono pode caminhar até a praça e os funcionários podem passear no jardim lateral.
+- **Pausas no 3D.** Pingue-pongue com raquetes, bola e placar, leitura e alongamento com animação própria, fliperama
+  com tela animada, vapor na cafeteira e luminárias que acendem ao escurecer.
+- **Móveis interativos.** A estante de fichários agora tem nichos abertos. No modo Passear, pressione E perto do
+  armário para abrir a gaveta com material de escritório.
+
+- **Acabamento aconchegante no escritório 3D.** Pisos de madeira clara, lambris, tapetes com bordas trançadas,
+  janelas ilustradas, poltronas estofadas e luz mais quente nas salas.
+
+- **Escritório 3D em miniatura.** O elenco de dez funcionários ganha cabeças mais arredondadas, rostos mais legíveis
+  e novas animações de descanso e atenção ao monitor. A vista em três quartos, a luz mais macia e as árvores de
+  copa esculpida reforçam a aparência de maquete.
+
+- **Passear pelo escritório 3D.** Tecla P (ou o botão na barra) põe você no escritório com o seu Habbinho, em 3ª
+  ou 1ª pessoa ou numa vista de cima (tecla V): anda com WASD ou clicando no chão, colide com paredes e móveis, senta em qualquer assento livre (mesas e nichos com a
+  pose de digitar; se o lugar estiver ocupado, senta no livre mais próximo), pega café, usa o elevador (com
+  painel de andares: Térreo, Mezanino e Cobertura, os dois últimos só de vista) e
+  cumprimenta agentes. O seu boneco não conta como agente.
+- **Prédio do Habblaud em 3D.** O escritório ocupa o térreo de um edifício com marquise e fachadas envidraçadas. O
+  seletor de vistas permite ver a fachada completa, o mezanino mobiliado e o terraço da cobertura. Os níveis de
+  visita são visuais e os agentes continuam no escritório.
+- **Barra de contas centralizada.** Os cartões de uso ficam entre a marca e as ferramentas no topo. Quando falta
+  espaço, passam para uma linha própria e podem ser rolados na horizontal.
+- **Jardim e câmeras do escritório 3D.** A entrada ganhou vasos de terracota, bancos de madeira e luminárias que acendem
+  ao anoitecer. O foco enquadra o agente de frente em três quartos. Durante o passeio, a câmera em terceira pessoa
+  se aproxima ao encontrar paredes e volta a se afastar quando o caminho fica livre.
+- **Escritório 3D em miniatura.** O modo 3D usa a coleção de dez personagens com rig e 17 animações para os avatares
+  sorteados. Avatares personalizados continuam com as escolhas do editor. Os móveis têm acabamento por material,
+  com estações em carvalho e azul-petróleo, reuniões em mostarda e copa em terracota. As telas acompanham a atividade,
+  as cadeiras deslizam ao sentar e as canecas acompanham os agentes no café.
+
 - **Escritório 3D.** O escritório ganhou uma visão tridimensional com o **Habbinho**, um boneco chibi criado para o
   Habblaud e montado a partir da aparência de cada agente (a mesma do 2D: 14 penteados, 7 roupas, calça, short ou saia,
   barba, acessórios e crachá), com rosto expressivo que pisca, sorri, se preocupa e cochila. Os móveis vêm de pacotes
@@ -53,6 +87,7 @@ do meio (0.**3**.0).
   não podem ser selecionados, não aparecem no timelapse e não sobem para o Habblaud World.
 
 ### Corrigido
+
 
 - Escritório 3D: etiquetas escondidas (de quem saiu da tela) continuavam paradas na última posição.
 

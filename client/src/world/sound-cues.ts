@@ -29,6 +29,7 @@ export class SoundCues {
     private readonly sim: Sim,
     private readonly camera: Camera,
     private readonly rng: () => number = Math.random,
+    private readonly rallyStep = (now: number, startAt: number) => Math.floor(((now - startAt) % (PINGPONG_PERIOD * 2)) / (PINGPONG_PERIOD / 2)),
   ) {}
 
   update(now: number, emit: (cue: SoundCue) => void): void {
@@ -104,7 +105,7 @@ export class SoundCues {
       if (g.kind === 'pingpong') {
         alive.add(g.id);
         // a cada meia ida: raquetada (pontas) ou quique na mesa (meio), como no desenho
-        const seg = Math.floor(((now - g.startAt) % (PINGPONG_PERIOD * 2)) / (PINGPONG_PERIOD / 2));
+        const seg = this.rallyStep(now, g.startAt);
         const prev = this.rally.get(g.id);
         this.rally.set(g.id, seg);
         if (prev !== undefined && prev !== seg) emit({ kind: seg % 2 === 0 ? 'pingpong' : 'table', gain: near, pan: this.pan(x, view) });

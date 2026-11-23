@@ -8,12 +8,12 @@ import { h } from './dom';
 
 const cache = new Map<string, { url: string; w: number; h: number }>();
 
-type AvatarSource = Pick<AgentInfo, 'seed' | 'look' | 'kind' | 'parts'>;
+type AvatarSource = Pick<AgentInfo, 'seed' | 'look' | 'kind' | 'parts' | 'custom'>;
 
 /** Lado do busto em px para cada tamanho (o pixel art tem 20 px de lado vezes a escala). */
 function avatarData(agent: AvatarSource, scale: number): { url: string; w: number; h: number; is3d?: boolean } {
   const px = 20 * scale;
-  const url3d = portrait({ seed: agent.seed, look: agent.look, sub: agent.kind === 'sub', parts: agent.parts, px });
+  const url3d = portrait({ seed: agent.seed, look: agent.look, sub: agent.kind === 'sub', parts: agent.parts, custom: agent.custom, px });
   if (url3d) return { url: url3d, w: px, h: px, is3d: true };
   const key = `${agent.seed}|${agent.look}|${agent.kind}|${scale}|${partsKey(agent.parts)}`;
   let entry = cache.get(key);
@@ -59,7 +59,7 @@ onPortraits(() => {
 
 export function updateAvatar(box: HTMLElement, agent: AvatarSource, size: AvatarSize): void {
   boxes.set(box, { agent, size });
-  const sig = `${agent.seed}|${agent.look}|${agent.kind}|${partsKey(agent.parts)}`;
+  const sig = `${agent.seed}|${agent.look}|${agent.kind}|${agent.custom ? 'custom' : ''}|${partsKey(agent.parts)}`;
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
   let img = box.querySelector('img');

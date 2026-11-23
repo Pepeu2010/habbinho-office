@@ -17,7 +17,7 @@ export interface CameraState {
 }
 
 export const DIST_MIN = 5;
-export const DIST_MAX = 140;
+export const DIST_MAX = 190;
 const PITCH_MIN = 0.32;
 const PITCH_MAX = 1.42;
 
@@ -30,6 +30,7 @@ export class StrategicCamera {
   insets: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
   /** Limites do alvo (o prédio com folga). */
   bounds = new THREE.Box3(new THREE.Vector3(-20, 0, -16), new THREE.Vector3(84, 0, 52));
+  maxDistance = DIST_MAX;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -55,13 +56,13 @@ export class StrategicCamera {
   }
 
   /** Distância que enquadra uma largura/profundidade no chão (com a área livre da tela). */
-  fitDistance(w: number, d: number, viewW: number, viewH: number): number {
+  fitDistance(w: number, d: number, viewW: number, viewH: number, pitch = this.state.pitch): number {
     const freeW = Math.max(120, viewW - this.insets.left - this.insets.right);
     const freeH = Math.max(120, viewH - this.insets.top - this.insets.bottom);
     const vfov = THREE.MathUtils.degToRad(this.camera.fov);
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (viewW / Math.max(1, viewH)));
     // a profundidade aparece encurtada pela inclinação; a projeção cobre a tela toda, só a área livre conta
-    const depth = d * Math.sin(this.state.pitch) + 2.2 * Math.cos(this.state.pitch);
+    const depth = d * Math.sin(pitch) + 2.2 * Math.cos(pitch);
     const byH = (depth / 2 / Math.tan(vfov / 2)) * (viewH / freeH);
     const byW = (w / 2 / Math.tan(hfov / 2)) * (viewW / freeW);
     return THREE.MathUtils.clamp(Math.max(byH, byW) * 1.08, DIST_MIN, DIST_MAX);
@@ -82,7 +83,7 @@ export class StrategicCamera {
   }
 
   zoom(factor: number): void {
-    this.state.dist = THREE.MathUtils.clamp(this.state.dist * factor, DIST_MIN, DIST_MAX);
+    this.state.dist = THREE.MathUtils.clamp(this.state.dist * factor, DIST_MIN, this.maxDistance);
   }
 
   clamp(): void {

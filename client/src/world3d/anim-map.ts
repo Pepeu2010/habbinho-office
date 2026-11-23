@@ -43,10 +43,10 @@ export function clipForPose(pose: Pose, seated: boolean, held: HeldItem, variant
     case 'sulk':
       return seated ? C(['Sit'], 0.6) : C(['Shake', 'Shrug', 'Idle'], 0.8);
     case 'stretch':
-      return C(seated ? ['Sit'] : ['Cheer', 'Idle'], 0.5);
+      return C(seated ? ['Sit'] : ['Stretch', 'Cheer', 'Idle'], 0.8);
     case 'read':
       if (held === 'phone') return seated ? C(['SitCall', 'Sit']) : C(['Text', 'Call', 'Think', 'Idle']);
-      return seated ? C(['SitCalc', 'Sit']) : C(['Calculate', 'Think', 'Idle']);
+      return seated ? C(['ReadSit', 'SitCalc', 'Sit']) : C(['Read', 'Calculate', 'Think', 'Idle']);
     case 'drink':
       return C(seated ? ['Sit'] : ['Think', 'Idle']);
     case 'use':
@@ -54,7 +54,7 @@ export function clipForPose(pose: Pose, seated: boolean, held: HeldItem, variant
     case 'game':
       return C(seated ? ['SitType', 'Sit'] : ['Type', 'Idle'], 1.3);
     case 'play':
-      return C(['Attack', 'Point', 'Idle'], 1.2);
+      return C(['Paddle', 'Attack', 'Point', 'Idle'], 1);
     case 'rps':
       return C(held === 'none' ? ['Nod', 'Idle'] : ['Point', 'Idle'], 1.2);
     case 'groom':

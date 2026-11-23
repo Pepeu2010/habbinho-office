@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { partsKey } from '../../../shared/appearance';
 import { appearanceFromSeed } from '../art';
 import { notifyPortraits, type PortraitRequest } from '../portraits';
-import { defaultModelFor, type CharacterAssets, type LoadedModel } from './assets';
+import { collectionFor, defaultModelFor, type CharacterAssets, type LoadedModel } from './assets';
 import { ChibiFace, chibiMaterials, dressChibi } from './chibi';
 
 export class Portraits3D {
@@ -16,9 +16,10 @@ export class Portraits3D {
   private face = new ChibiFace();
   private mats = chibiMaterials(this.face);
   private cache = new Map<string, string>();
+  private collection = new Map<string, THREE.Object3D | null>();
   private disposed = false;
 
-  constructor(assets: CharacterAssets) {
+  constructor(private assets: CharacterAssets) {
     this.scene.add(new THREE.HemisphereLight('#f6f2ff', '#7d7090', 1.9));
     const key = new THREE.DirectionalLight('#fff1dc', 2.6);
     key.position.set(1.5, 3, 4);
@@ -51,7 +52,19 @@ export class Portraits3D {
 
   get(r: PortraitRequest): string | null {
     if (!this.body || !this.model || this.disposed) return null;
-    const key = `${r.seed}|${r.look ?? '-'}|${r.sub ? 1 : 0}|${r.px}|${partsKey(r.parts)}`;
+    const id = r.custom || r.parts ? null : collectionFor(r.seed);
+    if (id && !this.collection.has(id)) {
+      this.collection.set(id, null);
+      void this.assets.loadCollection(r.seed).then((model) => {
+        if (this.disposed) return;
+        const figure = this.assets.instantiate(model);
+        figure.rotation.y = 0.32;
+        this.collection.set(id, figure);
+        notifyPortraits();
+      }).catch(() => undefined);
+    }
+    const figure = id ? this.collection.get(id) : null;
+    const key = figure ? `${id}|${r.px}` : `${r.seed}|${r.look ?? '-'}|${r.sub ? 1 : 0}|${r.px}|${partsKey(r.parts)}`;
     let url = this.cache.get(key);
     if (url) return url;
     try {
@@ -62,8 +75,24 @@ export class Portraits3D {
       const side = Math.max(16, Math.round(r.px * 2));
       this.renderer.setPixelRatio(1);
       this.renderer.setSize(side, side, false);
-      dressChibi(this.body, this.model.rig, appearanceFromSeed(r.seed, { look: r.look, sub: r.sub, parts: r.parts }), this.mats, this.face);
-      this.renderer.render(this.scene, this.camera);
+      if (figure) {
+        this.body.visible = false;
+        this.scene.add(figure);
+        this.camera.position.set(.28, .82, 1.47);
+        this.camera.lookAt(0, .71, 0);
+        try {
+          this.renderer.render(this.scene, this.camera);
+        } finally {
+          figure.removeFromParent();
+          this.body.visible = true;
+        }
+      } else {
+        const head = this.model.rig.headC.clone().multiplyScalar(this.model.scale);
+        this.camera.position.set(head.x + 0.38, head.y + 0.1, head.z + 2);
+        this.camera.lookAt(head.x, head.y - 0.06, head.z);
+        dressChibi(this.body, this.model.rig, appearanceFromSeed(r.seed, { look: r.look, sub: r.sub, parts: r.parts }), this.mats, this.face);
+        this.renderer.render(this.scene, this.camera);
+      }
       url = this.renderer.domElement.toDataURL('image/png');
       this.cache.set(key, url);
       return url;

@@ -33,6 +33,7 @@ export function screenModeOf(kind: ActivityKind | undefined, working: boolean): 
 }
 
 export function screenModeFor(ch: Character, accent?: string): THREE.Material {
-  const working = ch.seated && (ch.mode === 'work' || ch.mode === 'shell' || ch.mode === 'wait');
-  return screenMat(screenModeOf(ch.info.activity?.kind, working), accent);
+  if (!ch.seated) return screenMat('off');
+  if (ch.mode === 'wait' || (ch.mode !== 'work' && ch.mode !== 'shell')) return screenMat('standby', accent);
+  return screenMat(screenModeOf(ch.info.activity?.kind, true), accent);
 }

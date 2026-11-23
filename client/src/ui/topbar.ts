@@ -10,6 +10,7 @@ import { computeCounters, shellLine, shellWaitIn, shellWaitingAgents, waitingAge
 import { TIMELAPSE_ICONS } from './timelapse';
 import { focusPermission, nextPermissionAgent, permissionAgents } from './permission';
 import { UsageCards } from './usage';
+import { BuildingNavigator } from './building-nav';
 import { VersionChip } from './version';
 import { wordmark } from './widgets';
 import { tr } from '../../../shared/i18n';
@@ -53,6 +54,7 @@ export class TopBar implements UiComponent {
   private readonly spawnBtn: HTMLButtonElement;
   private readonly spawnPanel: SpawnPanel;
   private readonly localBtn: HTMLButtonElement;
+  private readonly walkBtn: HTMLButtonElement;
   private readonly localPanel: LocalAgentPanel;
   /** Grupo dos botões de painéis (feed, Habblaud World, configurações, ajuda); o histórico entra aqui (ui/index.ts). */
   readonly panelGroup: HTMLElement;
@@ -104,6 +106,7 @@ export class TopBar implements UiComponent {
     }
 
     this.usage = new UsageCards(ctx);
+    const buildingNav = new BuildingNavigator(ctx.root, ctx.world);
 
     this.sidebarBtn = iconButton(ICONS.sidebar, tr('Painel lateral ( [ )'), () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
     this.feedBtn = iconButton(ICONS.feed, tr('Feed de atividade ( ] )'), () => ctx.togglePanel('feed'), 'ui-btn-feed');
@@ -124,6 +127,15 @@ export class TopBar implements UiComponent {
     this.localBtn = iconButton(ICONS.localAgent, tr('Agente local: abre um agente com um modelo do Ollama ou do LM Studio'), () => this.localPanel.toggle(this.localBtn), 'ui-btn-local');
     this.localBtn.setAttribute('aria-haspopup', 'dialog');
     this.localBtn.hidden = true;
+    // Passear (só o mundo 3D): anda pelo escritório com um boneco próprio
+    const w = ctx.world;
+    this.walkBtn = iconButton(ICONS.walk, tr('Passear pelo escritório (P)'), () => w.setWalkMode?.(w.getWalkMode?.() ? null : 'third'), 'ui-btn-walk');
+    this.walkBtn.hidden = !w.setWalkMode;
+    this.walkBtn.setAttribute('aria-pressed', 'false');
+    w.onWalkChange?.((m) => this.walkBtn.setAttribute('aria-pressed', String(!!m)));
+    const ownerBtn = iconButton(ICONS.owner, tr('Dono do escritório'), () => w.editOwner?.(), 'ui-btn-owner');
+    ownerBtn.hidden = !w.editOwner;
+    ownerBtn.setAttribute('aria-haspopup', 'dialog');
     this.version = new VersionChip(ctx, this.settingsBtn);
     this.status = h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge);
     const viewGroup = h(
@@ -132,6 +144,8 @@ export class TopBar implements UiComponent {
       iconButton(ICONS.overview, tr('Visão geral (O)'), () => ctx.camera('overview')),
       iconButton(ICONS.zoomOut, tr('Afastar (−)'), () => ctx.camera('zoomOut')),
       iconButton(ICONS.zoomIn, tr('Aproximar (+)'), () => ctx.camera('zoomIn')),
+      this.walkBtn,
+      ownerBtn,
     );
     const panelGroup = h(
       'div',
@@ -140,6 +154,7 @@ export class TopBar implements UiComponent {
       this.localBtn,
       this.timelapseBtn,
       this.feedBtn,
+      buildingNav.button,
       this.worldBtn,
       this.settingsBtn,
       iconButton(ICONS.help, tr('Ajuda (?)'), () => ctx.openHelp()),

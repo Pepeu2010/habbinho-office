@@ -184,7 +184,26 @@ export function mergeStatic(root: THREE.Object3D, keep: (o: THREE.Object3D) => b
     const m = o as THREE.Mesh;
     if (m.isMesh && !(m as THREE.SkinnedMesh).isSkinnedMesh && !Array.isArray(m.material) && m.visible) {
       let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
-      for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+      const color = (m.material as THREE.MeshStandardMaterial).vertexColors ? g.getAttribute('color') : undefined;
+      for (const name of Object.keys(g.attributes)) {
+        if (name !== 'position' && name !== 'normal' && name !== 'uv' && name !== 'color') g.deleteAttribute(name);
+      }
+      if (color) {
+        // As peças da coleção carregam a paleta nos vértices. Uniformiza os atributos
+        // ao agrupar GLBs, independentemente do tipo do accessor original.
+        const rgba = new Float32Array(color.count * 4);
+        for (let i = 0; i < color.count; i++) {
+          rgba[i * 4] = color.getX(i);
+          rgba[i * 4 + 1] = color.getY(i);
+          rgba[i * 4 + 2] = color.getZ(i);
+          rgba[i * 4 + 3] = color.itemSize === 4 ? color.getW(i) : 1;
+        }
+        g.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+      } else if ((m.material as THREE.MeshStandardMaterial).vertexColors) {
+        g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position!.count * 4).fill(1), 4));
+      } else {
+        g.deleteAttribute('color');
+      }
       if (!g.attributes.normal) g.computeVertexNormals();
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));

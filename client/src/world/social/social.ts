@@ -6,6 +6,7 @@
 import type { AgentInfo } from '../../../../shared/types';
 import type { Dir, HeldItem, Pose } from '../../art/api';
 import type { AgentSocial, SocialEvent } from '../api';
+import { CAMPUS_GARDEN } from '../layout/exterior';
 import { mulberry32 } from '../../../../shared/hash';
 import { TILE } from '../constants';
 import { CAFE_ID, LIBRARY_ID, LOUNGE_ID, MEETING_ID, RECEPTION_ID, RESTROOM_ID } from '../layout/core';
@@ -1158,11 +1159,21 @@ export class Social {
 
   // =================================================================== consulta (interface)
 
-  /** "Vendo TV com Rafaela e Bia" — o que o agente está fazendo numa roda, se estiver. */
+  /** Atividade de lazer, em grupo ou individual. */
   doing(id: string): string | null {
     const ch = this.sim.chars.get(id);
     const g = ch?.gathering;
-    if (!g || g.phase === 'ended') return null;
+    if (!g || g.phase === 'ended') {
+      if (!ch || ch.mode !== 'idle' || !ch.atSpot) return null;
+      const at = this.sim.spots.get(ch.atSpot);
+      const spot = at?.kind;
+      if (ch.pose === 'read' && spot === 'shelf') return tr('📚 Lendo na biblioteca');
+      if (ch.held === 'coffee' || spot === 'coffee') return tr('☕ Pausa para café');
+      if (spot === 'arcade') return `🎮 ${KINDS.arcade.label}`;
+      if (ch.seated && spot && ['sofa', 'armchair', 'beanbag', 'bench'].includes(spot)) return tr('💤 Descansando');
+      if (spot === 'window') return at?.areaId.startsWith(CAMPUS_GARDEN) ? tr('🌿 Passeando no jardim') : tr('🌿 Olhando pela janela');
+      return null;
+    }
     const others = active(g)
       .filter((m) => m.id !== id)
       .map((m) => this.sim.chars.get(m.id)?.info.name)

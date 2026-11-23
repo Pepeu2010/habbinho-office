@@ -8,15 +8,19 @@ import type { Character } from '../world/sim/character';
 import type { Sim } from '../world/sim/sim';
 import type { SpotKind } from '../world/layout/types';
 import { REACTION_MS, clipForPose, reactionClip, reactionForIcon, resolveClip, type Reaction } from './anim-map';
-import { BONE, CHAR_H, defaultModelFor, type CharacterAssets, type CharacterModelDef, type LoadedModel } from './assets';
-import { SEAT_H, STOOL_H } from './furniture';
-import { PAL, cyl, mat, rbox, sphere } from './kit';
+import { rallyPhase } from './pingpong';
+import { BONE, CHAR_H, collectionFor, defaultModelFor, type CharacterAssets, type CollectionModel, type LoadedModel } from './assets';
+import { DESK_APPROACH, DESK_SEAT_H, SEAT_H, STOOL_H } from './furniture';
+import { PAL, cyl, mat, put, rbox, sphere } from './kit';
 import { ChibiFace, chibiKey, chibiMaterials, dressChibi, type Expression } from './chibi';
 import type { LookStore } from './looks';
+import { prop } from './props';
 
 /** Altura do assento por tipo de lugar (topo da almofada). */
 function seatHeight(kind: SpotKind | undefined): number {
   switch (kind) {
+    case 'desk':
+      return DESK_SEAT_H;
     case 'stool':
       return STOOL_H;
     case 'beanbag':
@@ -49,7 +53,7 @@ class Avatar implements AvatarView {
   readonly head = new THREE.Vector3();
   visible = false;
   private body: THREE.Object3D | null = null;
-  private model: LoadedModel | null = null;
+  private model: LoadedModel | CollectionModel | null = null;
   private modelId = '';
   private mixer: THREE.AnimationMixer | null = null;
   private actions = new Map<string, THREE.AnimationAction>();
@@ -70,6 +74,10 @@ class Avatar implements AvatarView {
   private faceMat: THREE.Material | null = null;
   private rnd = Math.random;
   private loading = false;
+  private disposed = false;
+  private previousDeskSeat: boolean | null = null;
+  private seatTransition: { name: 'SitDown' | 'StandUp'; until: number } | null = null;
+  private gaze = 0;
   readonly ring: THREE.Mesh;
   private shadowBlob: THREE.Mesh;
   private lookKey = '';
@@ -95,42 +103,63 @@ class Avatar implements AvatarView {
     this.root.add(this.shadowBlob);
   }
 
-  async ensureModel(assets: CharacterAssets, def: CharacterModelDef): Promise<void> {
-    if (this.modelId === def.id || this.loading) return;
+  async ensureModel(assets: CharacterAssets, ch: Character): Promise<void> {
+    const custom = ch.info.custom || ch.info.parts;
+    const wanted = custom ? 'habbinho' : collectionFor(ch.info.seed);
+    if (this.modelId === wanted || this.loading || this.disposed) return;
     this.loading = true;
     try {
-      const model = await assets.load(def);
-      this.setModel(assets, model);
+      const legacy = () => assets.load(defaultModelFor());
+      const model = await (custom ? legacy() : assets.loadCollection(ch.info.seed).catch(legacy));
+      if (!this.disposed) this.setModel(assets, model, wanted);
+    } catch {
+      // Os dois modelos podem estar indisponíveis enquanto a página estiver offline.
+      this.modelId = wanted;
     } finally {
       this.loading = false;
     }
   }
 
-  private setModel(assets: CharacterAssets, model: LoadedModel): void {
+  private setModel(assets: CharacterAssets, model: LoadedModel | CollectionModel, id: string): void {
     if (this.body) {
       this.root.remove(this.body);
       this.mixer?.stopAllAction();
       for (const m of this.materials) m.dispose();
       this.face?.dispose();
     }
-    assets.refreshClips(model);
+    if ('rig' in model) assets.refreshClips(model);
     this.model = model;
-    this.modelId = model.def.id;
+    this.modelId = id;
     this.lookKey = '';
     const body = assets.instantiate(model);
     // o visual é o Habbinho (vestido em update(), quando a aparência é conhecida)
-    this.face = new ChibiFace();
-    const mats = chibiMaterials(this.face);
-    this.materials = [mats.body, mats.face];
-    this.faceMat = mats.face;
+    this.face = null;
+    this.faceMat = null;
+    this.materials = [];
+    if ('rig' in model) {
+      this.face = new ChibiFace();
+      const mats = chibiMaterials(this.face);
+      this.materials = [mats.body, mats.face];
+      this.faceMat = mats.face;
+    } else {
+      body.traverse((entry) => {
+        const mesh = entry as THREE.SkinnedMesh;
+        if (!mesh.isSkinnedMesh || Array.isArray(mesh.material)) return;
+        const own = (mesh.material as THREE.MeshStandardMaterial).clone();
+        mesh.material = own;
+        this.materials.push(own);
+      });
+    }
     this.body = body;
     this.root.add(body);
-    this.headBone = body.getObjectByName(model.bones[BONE.head] ?? '') ?? null;
+    this.headBone = body.getObjectByName('rig' in model ? model.bones[BONE.head] ?? '' : 'Head') ?? null;
     // o objeto segurado vai no osso do braço, na mão visível do Habbinho (braço modelado mais baixo que o osso)
-    this.handBone = body.getObjectByName(model.bones[BONE.armR] ?? '') ?? null;
+    this.handBone = body.getObjectByName('rig' in model ? model.bones[BONE.armR] ?? '' : THREE.PropertyBinding.sanitizeNodeName('Hand.R')) ?? null;
     this.mixer = new THREE.AnimationMixer(body);
     this.actions.clear();
     this.current = null;
+    this.previousDeskSeat = null;
+    this.seatTransition = null;
     this.sitHips = this.measureSitHips();
     this.heldKind = 'none';
     this.heldObj = null;
@@ -140,6 +169,7 @@ class Avatar implements AvatarView {
   private measureSitHips(): number {
     const sit = this.model?.clips.get('Sit');
     if (!sit || !this.mixer || !this.body || !this.model) return 0.25;
+    if (!('rig' in this.model)) return 0.203;
     const hips = this.body.getObjectByName(this.model.bones[BONE.hips] ?? '');
     if (!hips) return 0.25;
     const a = this.mixer.clipAction(sit);
@@ -194,6 +224,7 @@ class Avatar implements AvatarView {
     if (ch.seated && spot) {
       tx = spot.x / TILE;
       tz = spot.ty + 0.5;
+      if (spot.kind === 'desk') tz += spot.dir === 'up' ? -DESK_APPROACH : DESK_APPROACH;
     } else {
       tx = (ch.x + ch.offX) / TILE;
       tz = (ch.y + ch.offY) / TILE - FOOT_SHIFT;
@@ -216,7 +247,7 @@ class Avatar implements AvatarView {
     this.last.copy(this.pos);
     this.yaw = approachAngle(this.yaw, goalYaw, 1 - Math.exp(-dt * 12));
 
-    const seatY = ch.seated ? Math.max(0, seatHeight(spot?.kind) + 0.03 - this.sitHips) : 0;
+    const seatY = ch.seated ? Math.max(0, seatHeight(spot?.kind) - this.sitHips + (this.model && 'rig' in this.model ? 0.03 : 0)) : 0;
     this.root.position.set(this.pos.x, this.root.position.y + (seatY - this.root.position.y) * (1 - Math.exp(-dt * 14)), this.pos.z);
     if (this.body) this.body.rotation.y = this.yaw;
 
@@ -228,7 +259,7 @@ class Avatar implements AvatarView {
     // aparência do agente (a mesma do 2D) e identificação escolhida no editor 3D
     this.badge = looks.get(ch.id, ch.info).badge ?? '';
     const lk = chibiKey(ch.appearance);
-    if (lk !== this.lookKey) {
+    if ('rig' in this.model && lk !== this.lookKey) {
       this.lookKey = lk;
       dressChibi(this.body, this.model.rig, ch.appearance, { body: this.materials[0]!, face: this.materials[1]! }, this.face ?? undefined);
     }
@@ -240,7 +271,27 @@ class Avatar implements AvatarView {
       this.poseCount++;
     }
     const variant = hash01(`${this.id}:${this.poseCount}`);
-    const choice = clipForPose(ch.pose, ch.seated, ch.held, variant);
+    const authored = !('rig' in this.model);
+    const atDesk = ch.seated && spot?.kind === 'desk';
+    if (authored && atDesk !== this.previousDeskSeat && this.previousDeskSeat !== null && ch.visible) {
+      const transition = atDesk ? 'SitDown' : 'StandUp';
+      const duration = this.model.clips.get(transition)?.duration;
+      if (duration) this.seatTransition = { name: transition, until: now + duration * 1000 };
+    }
+    this.previousDeskSeat = atDesk;
+    if (this.seatTransition && now >= this.seatTransition.until) this.seatTransition = null;
+    let choice = clipForPose(ch.pose, ch.seated, ch.held, variant);
+    if (authored && ch.pose === 'drink' && ch.held === 'coffee') {
+      choice = { clips: [ch.seated ? 'SipSit' : 'Sip', 'Idle'], speed: 1, loop: true };
+    } else if (authored && ch.pose === 'use' && spot?.kind === 'coffee' && ch.held !== 'coffee') {
+      choice = { clips: ['Reach', 'Idle'], speed: 1, loop: false };
+    } else if (authored && ch.pose === 'type' && !ch.seated) {
+      choice = { clips: ['Type'], speed: 1, loop: true };
+    } else if (authored && ch.seated && ch.pose === 'sleep') {
+      choice = { clips: ['Rest', 'Sit'], speed: 1, loop: true };
+    } else if (authored && atDesk && (ch.pose === 'wait' || (ch.pose === 'sit' && ch.held === 'none'))) {
+      choice = { clips: ['LookScreen', 'Sit'], speed: 1, loop: true };
+    }
     // reação a um ícone novo da simulação (concluiu, erro, atenção): só os recentes (não ao carregar a página)
     if (ch.icon && ch.iconAt !== this.iconAt) {
       this.iconAt = ch.iconAt;
@@ -252,15 +303,32 @@ class Avatar implements AvatarView {
     }
     if (this.reaction && now - this.reaction.t0 > REACTION_MS[this.reaction.kind]) this.reaction = null;
     const override = this.reaction ? reactionClip(this.reaction.kind, ch.seated, ch.pose) : null;
-    const name = override && this.model.clips.has(override) ? override : resolveClip(choice, (n) => this.model!.clips.has(n));
+    const transition = this.seatTransition?.name;
+    const name = transition ?? (override && this.model.clips.has(override) ? override : resolveClip(choice, (n) => this.model!.clips.has(n)));
     let rate = choice.speed;
     if (name === 'Walk' || name === 'WalkCall') rate = THREE.MathUtils.clamp(speed / WALK_REF, 0.6, 2.4);
     else if (name === 'Run') rate = THREE.MathUtils.clamp(speed / RUN_REF, 0.7, 1.8);
-    this.play(name, rate, choice.loop);
+    this.play(name, rate, transition ? false : choice.loop);
+    if (name === 'Paddle' && this.current && ch.gathering?.kind === 'pingpong') {
+      const phase = rallyPhase(now, ch.gathering.startAt);
+      const action = this.current.action;
+      action.time = ((phase + (ch.dir === 'left' ? 0.5 : 0)) % 1) * action.getClip().duration;
+    }
     this.mixer.update(dt);
 
     // camadas procedurais sobre o clipe: cochilo (cabeça baixa)
-    if (this.headBone && ch.pose === 'sleep') this.headBone.rotateX(0.45);
+    if (this.headBone && ch.pose === 'sleep' && name !== 'Rest') this.headBone.rotateX(0.45);
+    if (this.headBone && authored) {
+      const partner = ch.pose === 'talk' && spot?.group
+        ? sim.spots.group(spot.group).map((s) => sim.person(sim.spots.ownerOf(s.id) ?? '')).find((p) => p && p.id !== ch.id && p.visible)
+        : undefined;
+      const facing = partner
+        ? Math.atan2(partner.x / TILE - this.pos.x, partner.y / TILE - this.pos.z) - this.yaw
+        : 0;
+      const target = THREE.MathUtils.clamp(Math.atan2(Math.sin(facing), Math.cos(facing)), -0.58, 0.58);
+      this.gaze = THREE.MathUtils.lerp(this.gaze, target, 1 - Math.exp(-dt * 9));
+      this.headBone.rotateY(this.gaze);
+    }
     if (this.reaction) {
       const t = Math.min(1, (now - this.reaction.t0) / REACTION_MS[this.reaction.kind]);
       const k = 1 - t;
@@ -295,7 +363,7 @@ class Avatar implements AvatarView {
     this.root.updateMatrixWorld();
     if (this.headBone) {
       this.headBone.getWorldPosition(this.head);
-      this.head.y += 0.62;
+      this.head.y += authored ? 0.47 : 0.62;
     } else this.head.set(this.pos.x, CHAR_H + 0.2, this.pos.z);
   }
 
@@ -316,7 +384,8 @@ class Avatar implements AvatarView {
     this.handBone.updateWorldMatrix(true, false);
     this.handBone.getWorldScale(s);
     holder.scale.setScalar(1 / Math.max(1e-6, s.x));
-    holder.position.copy(this.model.rig.handR);
+    if ('rig' in this.model) holder.position.copy(this.model.rig.handR);
+    else holder.position.set(0, 0.025, 0);
     this.handBone.add(holder);
     this.heldObj = holder;
   }
@@ -331,6 +400,7 @@ class Avatar implements AvatarView {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.mixer?.stopAllAction();
     for (const m of this.materials) m.dispose();
     this.face?.dispose();
@@ -368,6 +438,14 @@ function heldModel(kind: HeldItem): THREE.Object3D | null {
   };
   switch (kind) {
     case 'coffee':
+      {
+        const cup = prop('craftedMug', { h: 0.105 });
+        if (cup) {
+          cup.position.set(0, -0.035, 0.044);
+          g.add(cup);
+          break;
+        }
+      }
       add(cyl(0.045, 0.04, 0.09, 12), PAL.cream, 0, 0, 0.04);
       add(cyl(0.04, 0.04, 0.005, 12), '#5b3a24', 0, 0.045, 0.04);
       break;
@@ -378,7 +456,14 @@ function heldModel(kind: HeldItem): THREE.Object3D | null {
       add(rbox(0.16, 0.2, 0.01, 0.003), PAL.paper, 0, 0, 0.06);
       break;
     case 'book':
-      add(rbox(0.14, 0.18, 0.04, 0.008), PAL.coral, 0, 0, 0.06);
+      for (const side of [-1, 1]) {
+        const leaf = new THREE.Group();
+        leaf.position.set(side * 0.056, -0.008, 0.067);
+        leaf.rotation.y = side * -0.19;
+        put(leaf, rbox(0.115, 0.145, 0.018, 0.007), mat(PAL.coral), 0, -0.062, 0);
+        put(leaf, rbox(0.102, 0.13, 0.012, 0.004), mat(PAL.paper), 0, -0.055, 0.012);
+        g.add(leaf);
+      }
       break;
     case 'laptop':
       add(rbox(0.24, 0.015, 0.17, 0.006), PAL.grey, 0, 0, 0.08);
@@ -459,7 +544,7 @@ export class Avatars {
         this.list.set(ch.id, a);
         this.group.add(a.root);
       }
-      void a.ensureModel(this.assets, defaultModelFor());
+      void a.ensureModel(this.assets, ch);
       a.update(ch, sim, dt, now, this.looks);
       const status = ch.mode === 'wait' ? PAL.orange : null;
       if (ch.id === selected) a.setRing('#ffffff', 0.95);

@@ -1,11 +1,27 @@
 // Área externa: grama, árvores, calçada e rua; pátio/jardim nos slots sem sala.
 import type { WallStyle } from '../../art/api';
 import { mulberry32 } from '../../../../shared/hash';
-import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y, EXT_EAST, EXT_NORTH, EXT_SOUTH, EXT_WEST, SOUTH_Y, TILE } from '../constants';
+import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_H, CORRIDOR_Y, EXT_EAST, EXT_NORTH, EXT_SOUTH, EXT_WEST, SOUTH_Y, TILE } from '../constants';
 import { cellRect, slotAt, slotColumn, slotSide } from './geometry';
+import { AreaBuilder } from './builder';
 import type { ExteriorProp, FloorPatch, TileRect, WallItemPlacement, WallSegment } from './types';
 
 export const EXTERIOR_WALL: WallStyle = { base: '#cfc8bd', trim: '#8a8174', pattern: 'brick', exterior: true };
+export const CAMPUS_GARDEN = 'core:jardim';
+
+/** Conexão do corredor com o jardim, usada apenas pelo escritório 3D. */
+export function campusGarden(cols: number) {
+  const width = cols * COL_W;
+  const hall = CORRIDOR_Y + Math.floor(CORRIDOR_H / 2);
+  const garden = new AreaBuilder(`${CAMPUS_GARDEN}:${cols}`, 'room', { x: width - 1, y: hall, w: 13, h: BUILDING_H - hall });
+  garden.walk(0, 0, 9, 1);
+  garden.walk(6, 1, 3, 6);
+  garden.walk(3, 5, 10, 7);
+  for (const x of [5, 10]) garden.spot('window', x, 8, 'down');
+  garden.spot('talk', 5, 6, 'right', { group: 'talk:jardim' });
+  garden.spot('talk', 6, 6, 'left', { group: 'talk:jardim' });
+  return garden.build();
+}
 
 export interface ExteriorLayout {
   /** Limites da área desenhada (tiles). */

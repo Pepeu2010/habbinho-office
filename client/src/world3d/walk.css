@@ -1,0 +1,86 @@
+/* Modo Passear: aviso de interação e barra de controles, embaixo e no centro da tela. */
+.w3d-walk {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 15;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  font-family: 'Nunito Variable', system-ui, sans-serif;
+}
+.w3d-walk[hidden],
+.w3d-walk [hidden] {
+  display: none !important;
+}
+.w3d-walk__prompt {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffc84a;
+  color: #161a33;
+  font: 700 15px/1 'Fredoka Variable', system-ui, sans-serif;
+  box-shadow: 0 10px 24px rgba(10, 12, 32, 0.35);
+}
+.w3d-walk__bar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(48, 54, 108, 0.95), rgba(32, 36, 74, 0.96));
+  border: 1px solid rgba(190, 200, 255, 0.18);
+  box-shadow: 0 14px 30px rgba(10, 12, 32, 0.35);
+  color: #eef0ff;
+}
+.w3d-walk__floors {
+  pointer-events: auto;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(48, 54, 108, 0.95), rgba(32, 36, 74, 0.96));
+  border: 1px solid rgba(190, 200, 255, 0.18);
+  box-shadow: 0 14px 30px rgba(10, 12, 32, 0.35);
+}
+.w3d-walk__keys {
+  margin: 0 6px 0 0;
+  font-size: 12.5px;
+  color: #aeb4d8;
+  white-space: nowrap;
+}
+.w3d-walk__btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(190, 200, 255, 0.26);
+  border-radius: 999px;
+  background: rgba(174, 186, 255, 0.1);
+  color: #eef0ff;
+  font: 700 13px/1 'Nunito Variable', system-ui, sans-serif;
+  cursor: pointer;
+}
+.w3d-walk__btn:hover {
+  background: rgba(174, 186, 255, 0.2);
+}
+.w3d-walk__btn:focus-visible,
+.w3d-walk__prompt:focus-visible {
+  outline: 2px solid #ffc84a;
+  outline-offset: 2px;
+}
+@media (max-width: 900px) {
+  .w3d-walk__keys {
+    display: none;
+  }
+}
+
+/* passeando: a lista de salas e o feed saem da frente (a gaveta continua abrindo ao cumprimentar alguém) */
+body.w3d-walking .ui-sidebar,
+body.w3d-walking .ui-feed {
+  display: none !important;
+}

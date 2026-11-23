@@ -3,6 +3,7 @@
 // do footprint (x para leste, z para o sul/câmera, y para cima). Itens de parede: origem no centro da base, na face
 // da parede, virados para +z (para dentro da sala).
 import * as THREE from 'three';
+import { PingPongDisplay } from './pingpong';
 import type { FurnitureKind, RoomTheme } from '../art/api';
 import { PAL, block, canvasTex, cyl, mat, pick, plane, put, rbox, sphere, texMat } from './kit';
 import { partBox, prop, type Fit, type PropName } from './props';
@@ -21,6 +22,9 @@ function place(g: THREE.Object3D, name: PropName, fit: Fit, x: number, y: number
 export const SEAT_H = 0.3;
 export const DESK_H = 0.5;
 export const STOOL_H = 0.36;
+export const DESK_SEAT_H = 0.239;
+export const DESK_APPROACH = 0.32;
+const WORKTOP = 0.457;
 
 export interface FurnitureCtx {
   theme?: RoomTheme;
@@ -28,13 +32,22 @@ export interface FurnitureCtx {
   variant?: string;
   /** Estado (porta do elevador 0..4, cafeteira...). */
   state?: number;
+  deskSeat?: boolean;
+  zone?: 'work' | 'meeting' | 'cafe';
 }
 
 /** Peças que o mundo atualiza depois de montadas (telas que seguem a atividade, portas de elevador). */
 export interface FurnitureHooks {
   screen?: THREE.Mesh;
+  chair?: { model: THREE.Group; baseZ: number; direction: number };
+  cup?: THREE.Object3D;
   doors?: [THREE.Object3D, THREE.Object3D];
   clockHands?: [THREE.Object3D, THREE.Object3D];
+  pingpong?: PingPongDisplay;
+  arcade?: THREE.Mesh;
+  steam?: THREE.Group;
+  lamp?: THREE.Mesh;
+  drawer?: { obj: THREE.Object3D; handle: THREE.Object3D; z: number; until: number };
 }
 
 const DESK_TOPS: Record<string, string> = { wood: PAL.oak, white: PAL.white, dark: PAL.woodDark };
@@ -42,7 +55,7 @@ const CHAIR_COLORS: Record<string, string> = { black: PAL.charcoal, blue: PAL.na
 
 // ------------------------------------------------------------------ telas (texturas de canvas)
 
-export type ScreenMode = 'off' | 'code' | 'term' | 'docs' | 'web' | 'chart' | 'chat';
+export type ScreenMode = 'off' | 'standby' | 'code' | 'term' | 'docs' | 'web' | 'chart' | 'chat';
 
 /** Material da tela de um monitor. As variantes são poucas e compartilhadas por todas as mesas. */
 export function screenMat(mode: ScreenMode, accent: string = PAL.blue): THREE.Material {
@@ -52,7 +65,14 @@ export function screenMat(mode: ScreenMode, accent: string = PAL.blue): THREE.Ma
     c.fillStyle = bg;
     c.fillRect(0, 0, w, h);
     const rnd = mulberry(mode.length * 977 + accent.length);
-    if (mode === 'code' || mode === 'term') {
+    if (mode === 'standby') {
+      c.fillStyle = '#263547';
+      c.fillRect(11, 12, 106, 57);
+      c.fillStyle = accent;
+      c.fillRect(53, 34, 22, 12);
+      c.fillStyle = '#607482';
+      c.fillRect(36, 54, 56, 3);
+    } else if (mode === 'code' || mode === 'term') {
       const cols = mode === 'term' ? ['#7fd68b', '#c9d1d9', '#7fd68b'] : [accent, '#e6c07b', '#98c379', '#c678dd', '#abb2bf'];
       c.fillStyle = '#2a3140';
       if (mode === 'code') c.fillRect(0, 0, 22, h);
@@ -92,7 +112,7 @@ export function screenMat(mode: ScreenMode, accent: string = PAL.blue): THREE.Ma
         c.fillRect(me ? w - 70 : 8, y, 62, 11);
       }
     }
-  }, mode === 'docs' || mode === 'web' ? 0.55 : 0.9);
+  }, mode === 'standby' ? 0.22 : mode === 'docs' || mode === 'web' ? 0.55 : 0.9);
 }
 
 function mulberry(a: number): () => number {
@@ -112,13 +132,25 @@ function monitor(g: THREE.Group, x: number, y: number, z: number, faceSouth: boo
   const m = new THREE.Group();
   m.position.set(x, y, z);
   m.rotation.y = ry;
+  const crafted = place(m, 'craftedMonitor', { w: 0.67 }, 0, 0, 0);
+  const socket = crafted?.getObjectByName('Socket_Screen');
+  if (socket) {
+    g.add(m);
+    const c = m.worldToLocal(socket.getWorldPosition(new THREE.Vector3()));
+    const screen = put(m, plane(0.587, 0.319), screenMat('off'), c.x, c.y - 0.319 / 2, c.z + 0.009, { shadow: false });
+    screen.userData.dynamic = true;
+    hooks.screen = screen;
+    return;
+  }
+  if (crafted) m.remove(crafted);
   const model = place(m, 'computerScreen', { w: 0.66 }, 0, 0, 0);
   if (model) {
     // a tela dinâmica cobre o painel claro do modelo
     g.add(m);
     const b = partBox(model, 'metal');
     const c = b.getCenter(new THREE.Vector3());
-    const screen = put(m, plane((b.max.x - b.min.x) * 0.94, (b.max.y - b.min.y) * 0.9), screenMat('off'), c.x, c.y, b.max.z + 0.004, { shadow: false });
+    const height = (b.max.y - b.min.y) * 0.9;
+    const screen = put(m, plane((b.max.x - b.min.x) * 0.94, height), screenMat('off'), c.x, c.y - height / 2, b.max.z + 0.004, { shadow: false });
     screen.userData.dynamic = true;
     hooks.screen = screen;
     return;
@@ -133,6 +165,10 @@ function monitor(g: THREE.Group, x: number, y: number, z: number, faceSouth: boo
 }
 
 function keyboard(g: THREE.Group, x: number, y: number, z: number, ry = 0): void {
+  if (place(g, 'craftedKeyboard', { w: 0.343 }, x, y, z, ry)) {
+    place(g, 'craftedMouse', { w: 0.062 }, x + (ry ? -0.26 : 0.26), y, z + 0.014, ry);
+    return;
+  }
   if (place(g, 'computerKeyboard', { w: 0.36 }, x, y, z, ry)) {
     place(g, 'computerMouse', { w: 0.05 }, x + (ry ? -0.27 : 0.27), y, z, ry);
     return;
@@ -143,8 +179,9 @@ function keyboard(g: THREE.Group, x: number, y: number, z: number, ry = 0): void
   mouse.rotation.y = ry;
 }
 
-function mug(g: THREE.Group, x: number, y: number, z: number, color: string): void {
-  put(g, cyl(0.035, 0.03, 0.075, 12), mat(color, { rough: 0.5 }), x, y, z);
+function mug(g: THREE.Group, x: number, y: number, z: number, color: string): THREE.Object3D {
+  return place(g, 'craftedMug', { h: 0.093 }, x, y, z, 0.35)
+    ?? put(g, cyl(0.035, 0.03, 0.075, 12), mat(color, { rough: 0.5 }), x, y, z);
 }
 
 function pot(g: THREE.Group, x: number, z: number, r: number, h: number, color: string): void {
@@ -165,10 +202,18 @@ function foliage(g: THREE.Group, x: number, y: number, z: number, r: number, col
   put(g, sphere(r * 0.6, 12), m, x, y + r * 0.55, z);
 }
 
-function chair(g: THREE.Group, cx: number, cz: number, backSouth: boolean, color: string): void {
-  if (place(g, 'chairDesk', { h: 0.66 }, cx, 0, cz, backSouth ? Math.PI : 0, { carpet: color })) return;
+function chair(g: THREE.Group, cx: number, cz: number, backSouth: boolean, color: string, ctx: FurnitureCtx, hooks: FurnitureHooks): void {
+  const direction = backSouth ? 1 : -1;
   const c = new THREE.Group();
-  c.position.set(cx, 0, cz);
+  const baseZ = cz - direction * (ctx.deskSeat ? DESK_APPROACH - 0.07 : 0);
+  c.position.set(cx, 0, baseZ);
+  c.userData.dynamic = !!ctx.deskSeat;
+  c.name = 'office-chair';
+  g.add(c);
+  if (ctx.deskSeat) hooks.chair = { model: c, baseZ, direction };
+  const h = ctx.deskSeat ? 0.523 : 0.655;
+  if (place(c, 'craftedChair', { w: 0.48, h, d: 0.44 }, 0, 0, 0, backSouth ? Math.PI : 0)) return;
+  if (place(c, 'chairDesk', { h }, 0, 0, 0, backSouth ? Math.PI : 0, { carpet: color })) return;
   c.rotation.y = backSouth ? 0 : Math.PI;
   const base = mat(PAL.greyDark, { rough: 0.4, metal: 0.5 });
   for (let i = 0; i < 5; i++) {
@@ -181,7 +226,6 @@ function chair(g: THREE.Group, cx: number, cz: number, backSouth: boolean, color
   block(c, 0.44, 0.42, 0.07, color, 0, SEAT_H + 0.02, 0.21, 0.035);
   block(c, 0.04, 0.12, 0.24, PAL.greyDark, -0.24, SEAT_H, 0.02, 0.015);
   block(c, 0.04, 0.12, 0.24, PAL.greyDark, 0.24, SEAT_H, 0.02, 0.015);
-  g.add(c);
 }
 
 function dirYaw(dir: string | undefined): number {
@@ -222,9 +266,10 @@ type Builder = (g: THREE.Group, w: number, h: number, ctx: FurnitureCtx, hooks: 
 const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   desk: (g, _w, _h, ctx, hooks) => deskModel(g, ctx, hooks, true),
   desk_back: (g, _w, _h, ctx, hooks) => deskModel(g, ctx, hooks, false),
-  office_chair: (g, _w, _h, ctx) => chair(g, 0.5, 0.5, true, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal),
-  office_chair_front: (g, _w, _h, ctx) => chair(g, 0.5, 0.5, false, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal),
+  office_chair: (g, _w, _h, ctx, hooks) => chair(g, 0.5, 0.5, true, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal, ctx, hooks),
+  office_chair_front: (g, _w, _h, ctx, hooks) => chair(g, 0.5, 0.5, false, CHAIR_COLORS[ctx.variant ?? ctx.theme?.chairVariant ?? 'black'] ?? PAL.charcoal, ctx, hooks),
   bookshelf: (g, w, _h, ctx) => {
+    if (place(g, 'craftedBookcase', { w: w - 0.10, h: 1.52, d: 0.42 }, w / 2, 0, 0.24)) return;
     const wood = mat(PAL.wood);
     block(g, w - 0.08, 1.7, 0.36, wood, w / 2, 0, 0.22, 0.02);
     const inner = mat(PAL.woodDark);
@@ -235,15 +280,35 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     }
   },
   binder_shelf: (g, _w, _h, ctx) => {
-    block(g, 0.84, 1.5, 0.36, PAL.white, 0.5, 0, 0.22, 0.02);
+    const frame = '#c6a487';
+    const inside = '#dde0ce';
+    block(g, 0.78, 1.49, 0.055, inside, 0.5, 0.025, 0.058, 0.019);
+    for (const x of [0.11, 0.89]) block(g, 0.069, 1.50, 0.42, frame, x, 0.018, 0.24, 0.022);
     const colors = [PAL.blue, PAL.orange, PAL.sage];
-    for (let i = 0; i < 3; i++) {
-      const y = 0.1 + i * 0.47;
-      block(g, 0.76, 0.02, 0.3, PAL.grey, 0.5, y, 0.25, 0.005);
-      for (let k = 0; k < 6; k++) block(g, 0.08, 0.3, 0.26, colors[(k + i + ctx.seed) % 3]!, 0.2 + k * 0.1, y + 0.02, 0.27, 0.008);
+    for (let i = 0; i <= 3; i++) {
+      const y = 0.055 + i * 0.47;
+      block(g, 0.84, 0.067, 0.44, frame, 0.5, y, 0.24, 0.022);
+      if (i === 3) break;
+      for (let k = 0; k < 6; k++) {
+        const x = 0.21 + k * 0.115;
+        const height = 0.29 + ((i + k * 2) % 4) * 0.022;
+        block(g, 0.092, height, 0.26, colors[(k + i + ctx.seed) % 3]!, x, y + 0.067, 0.247, 0.012);
+        block(g, 0.057, 0.09, 0.008, '#f7ecd8', x, y + height - 0.06, 0.381, 0.004);
+      }
     }
+    place(g, 'craftedPlant', { h: 0.31 }, 0.72, 1.532, 0.25);
   },
-  filing_cabinet: (g) => {
+  filing_cabinet: (g, _w, _h, _ctx, hooks) => {
+    const cabinet = place(g, 'craftedCabinet', { w: 0.71, h: 0.82, d: 0.57 }, 0.5, 0, 0.45);
+    if (cabinet) {
+      const handle = cabinet.getObjectByName('Socket_Handle');
+      if (handle) cabinet.traverse((obj) => {
+        if (obj.userData.drawer !== true) return;
+        obj.userData.dynamic = true;
+        hooks.drawer = { obj, handle, z: obj.position.z, until: 0 };
+      });
+      return;
+    }
     block(g, 0.6, 0.8, 0.55, PAL.grey, 0.5, 0, 0.45, 0.025);
     for (let i = 0; i < 3; i++) {
       block(g, 0.54, 0.22, 0.02, PAL.metal, 0.5, 0.06 + i * 0.25, 0.73, 0.01);
@@ -262,6 +327,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     put(g, sphere(0.05, 8), mat(PAL.paper), 0.5, 0.26, 0.55);
   },
   plant_small: (g, _w, _h, ctx) => {
+    if (ctx.variant !== 'flower' && place(g, 'craftedPlant', { h: 0.43 }, 0.5, 0, 0.48, ctx.seed % 6)) return;
     const v = ctx.variant ?? pick(['fern', 'succulent', 'flower'], ctx.seed);
     const model = pick<[PropName, number]>([['cactusS1', 0.45], ['cactusS2', 0.45], ['plantSmall2', 0.5], ['plantSmall1', 0.5]], ctx.seed);
     if (place(g, model[0], { h: model[1] }, 0.5, 0, 0.55, ctx.seed % 4)) return;
@@ -278,6 +344,8 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
   plant_tall: (g, _w, _h, ctx) => {
     const v = ctx.variant ?? pick(['palm', 'ficus', 'monstera', 'bonsai'], ctx.seed);
+    if ((v === 'ficus' || v === 'monstera')
+      && place(g, 'craftedPlant', { h: 1.12, w: 0.74, d: 0.66 }, 0.5, 0, 0.5, ctx.seed % 6)) return;
     const model = pick<[PropName, number]>([['pottedPlant', 1.25], ['cactusM1', 0.95], ['pottedPlant', 1.1], ['cactusM2', 0.95]], ctx.seed);
     if (place(g, model[0], { h: model[1] }, 0.5, 0, 0.5, ctx.seed % 6)) return;
     pot(g, 0.5, 0.5, 0.2, 0.34, v === 'bonsai' ? PAL.navy : pick([PAL.terracotta, PAL.cream, PAL.charcoal], ctx.seed));
@@ -308,13 +376,16 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, along ? 1 : 0.04, 0.75, along ? 0.04 : 1, glass, 0.5, 0.35, 0.5, 0.005);
     block(g, along ? 1 : 0.06, 0.04, along ? 0.06 : 1, PAL.metal, 0.5, 1.1, 0.5, 0.01);
   },
-  meeting_table: (g, w, h) => {
-    block(g, w - 0.3, 0.06, h - 0.35, PAL.oak, w / 2, DESK_H - 0.06, h / 2, 0.04);
+  meeting_table: (g, w, h, ctx) => {
+    const accent = ctx.zone === 'meeting' ? '#ac8449' : ctx.zone === 'cafe' ? '#b76950' : '#416a6b';
+    block(g, w - 0.3, 0.06, h - 0.35, '#cfa575', w / 2, DESK_H - 0.06, h / 2, 0.04);
     block(g, 0.3, DESK_H - 0.06, 0.3, PAL.charcoal, w / 2 - 0.7, 0, h / 2, 0.03);
     block(g, 0.3, DESK_H - 0.06, 0.3, PAL.charcoal, w / 2 + 0.7, 0, h / 2, 0.03);
-    block(g, 0.4, 0.015, 0.3, PAL.paper, w / 2 - 0.4, DESK_H, h / 2 + 0.1, 0.005).rotation.y = 0.2;
+    block(g, w - 0.65, 0.005, 0.27, accent, w / 2, DESK_H + 0.002, h / 2, 0.002);
+    place(g, 'craftedNotebook', { w: 0.35 }, w / 2 - 0.47, DESK_H, h / 2 + 0.16, 0.22);
     mug(g, w / 2 + 0.5, DESK_H, h / 2 - 0.15, PAL.coral);
-    block(g, 0.36, 0.02, 0.24, PAL.greyDark, w / 2 + 0.1, DESK_H, h / 2 - 0.05, 0.01);
+    if (ctx.zone === 'meeting') place(g, 'craftedRemote', { d: 0.16 }, w / 2 + 0.16, DESK_H + 0.007, h / 2, -0.25);
+    else if (ctx.zone === 'cafe') place(g, 'craftedService', { w: 0.35 }, w / 2 + 0.16, DESK_H + 0.007, h / 2, -0.12);
   },
   stool: (g) => {
     if (place(g, 'stool', { h: STOOL_H }, 0.5, 0, 0.5)) return;
@@ -322,7 +393,12 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     put(g, cyl(0.025, 0.025, STOOL_H - 0.07, 8), mat(PAL.greyDark, { metal: 0.5, rough: 0.4 }), 0.5, 0, 0.5);
     put(g, cyl(0.13, 0.15, 0.02, 16), mat(PAL.greyDark, { metal: 0.5, rough: 0.4 }), 0.5, 0, 0.5);
   },
-  floor_lamp: (g) => {
+  floor_lamp: (g, _w, _h, _ctx, hooks) => {
+    if (place(g, 'craftedLamp', { h: 1.32 }, 0.5, 0, 0.52, -0.34)) {
+      hooks.lamp = put(g, sphere(0.072, 10), mat('#ffe8ba', { emissive: '#ffca75', emissiveIntensity: 1.4 }), 0.5, 1.088, 0.52, { shadow: false });
+      hooks.lamp.userData.dynamic = true;
+      return;
+    }
     const lamp = place(g, 'lamp', { h: 1.45 }, 0.5, 0, 0.5);
     if (lamp) {
       // brilho da cúpula à noite (o tecido do modelo não emite)
@@ -345,8 +421,24 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.5, 0.03, 0.36, PAL.metal, 0.5, 0.6, 0.45, 0.02).material = mat(PAL.metal, { metal: 0.7, rough: 0.25 });
     put(g, cyl(0.015, 0.015, 0.22, 8), mat(PAL.metal, { metal: 0.8, rough: 0.2 }), 0.5, 0.62, 0.2);
   },
-  coffee_machine: (g) => {
+  coffee_machine: (g, _w, _h, _ctx, hooks) => {
     counterBase(g, false);
+    const coffee = place(g, 'craftedCoffee', { h: 0.42 }, 0.56, 0.64, 0.34);
+    if (coffee) {
+      place(g, 'craftedService', { w: 0.35 }, 0.23, 0.64, 0.48);
+      const anchor = coffee.getObjectByName('Socket_Cup');
+      const target = anchor ? g.worldToLocal(anchor.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(0.56, 0.71, 0.49);
+      hooks.cup = mug(g, target.x, target.y, target.z, PAL.cream);
+      hooks.cup.userData.dynamic = true;
+      hooks.steam = new THREE.Group();
+      hooks.steam.position.copy(target);
+      hooks.steam.position.y += 0.10;
+      hooks.steam.userData.dynamic = true;
+      hooks.steam.visible = false;
+      for (let i = 0; i < 3; i++) put(hooks.steam, sphere(0.038, 8), mat('#fff9e9', { opacity: 0.23 }), 0, 0, 0, { shadow: false });
+      g.add(hooks.steam);
+      return;
+    }
     if (place(g, 'coffeeMachine', { h: 0.36 }, 0.5, 0.64, 0.4)) {
       mug(g, 0.22, 0.64, 0.55, PAL.cream);
       return;
@@ -399,6 +491,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     g.add(c);
   },
   sofa: (g, w, _h, ctx) => {
+    if (place(g, 'craftedSofa', { w: w - 0.11, h: 0.65, d: 0.80 }, w / 2, 0, 0.49, ctx.variant === 'up' ? Math.PI : 0)) return;
     if (place(g, 'couch', { w: w - 0.1 }, w / 2, 0, 0.5, ctx.variant === 'up' ? Math.PI : 0)) return;
     const c = new THREE.Group();
     c.position.set(w / 2, 0, 0.5);
@@ -414,6 +507,7 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     g.add(c);
   },
   armchair: (g, _w, _h, ctx) => {
+    if (place(g, 'craftedLoungeChair', { w: 0.79, h: 0.66, d: 0.68 }, 0.5, 0, 0.5, dirYaw(ctx.variant))) return;
     if (place(g, 'armchair', { h: 0.78 }, 0.5, 0, 0.5, dirYaw(ctx.variant))) return;
     const c = new THREE.Group();
     c.position.set(0.5, 0, 0.5);
@@ -427,7 +521,8 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
   coffee_table: (g, w) => {
     if (place(g, 'lowTable', { w: w - 0.35 }, w / 2, 0, 0.5)) {
-      place(g, 'bookSet', { h: 0.12 }, w / 2 - 0.2, 0.2, 0.5, 0.4);
+      place(g, 'craftedBooks', { h: 0.14 }, w / 2 - 0.24, 0.2, 0.5, 0.4)
+        ?? place(g, 'bookSet', { h: 0.12 }, w / 2 - 0.2, 0.2, 0.5, 0.4);
       mug(g, w / 2 + 0.25, 0.2, 0.45, PAL.mustard);
       return;
     }
@@ -437,7 +532,12 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     block(g, 0.3, 0.04, 0.22, PAL.blue, w / 2 - 0.2, 0.29, 0.5, 0.01);
     mug(g, w / 2 + 0.25, 0.29, 0.45, PAL.mustard);
   },
-  pingpong_table: (g, w, h) => {
+  pingpong_table: (g, w, h, _ctx, hooks) => {
+    const table = place(g, 'craftedPingPong', { w: w - 0.2, h: 0.666, d: h - 0.35 }, w / 2, 0, h / 2);
+    const playSurface = table?.getObjectByName('Socket_Play_Surface');
+    hooks.pingpong = new PingPongDisplay(w, h, playSurface?.getWorldPosition(new THREE.Vector3()).y ?? DESK_H);
+    g.add(hooks.pingpong.root);
+    if (table) return;
     block(g, w - 0.2, 0.05, h - 0.4, '#2f7a5b', w / 2, DESK_H - 0.05, h / 2, 0.02);
     block(g, w - 0.24, 0.006, 0.02, PAL.white, w / 2, DESK_H, h / 2, 0.002);
     block(g, 0.02, 0.14, h - 0.4, PAL.white, w / 2, DESK_H, h / 2, 0.005).material = mat(PAL.white, { opacity: 0.75 });
@@ -450,17 +550,12 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
     const top = put(g, sphere(0.22, 14), mat(colors[ctx.variant ?? 'red'] ?? PAL.coral, { rough: 0.95 }), 0.5, 0.18, 0.38);
     top.scale.set(1.2, 0.8, 0.7);
   },
-  arcade: (g) => {
+  arcade: (g, _w, _h, _ctx, hooks) => {
     block(g, 0.7, 1.6, 0.66, PAL.navy, 0.5, 0, 0.42, 0.04);
-    const scr = put(g, plane(0.5, 0.42), texMat('arcade', 64, 54, (c, w, h) => {
-      c.fillStyle = '#120d2a';
-      c.fillRect(0, 0, w, h);
-      c.fillStyle = '#ffde59';
-      for (let i = 0; i < 10; i++) c.fillRect(6 + i * 5, 10 + (i % 3) * 4, 3, 3);
-      c.fillStyle = '#ff4fa3';
-      c.fillRect(28, 40, 10, 6);
-    }, 1.1), 0.5, 1.0, 0.765, { shadow: false });
+    const scr = put(g, plane(0.5, 0.42), arcadeScreen(0), 0.5, 1.0, 0.765, { shadow: false });
     scr.rotation.x = -0.12;
+    scr.userData.dynamic = true;
+    hooks.arcade = scr;
     block(g, 0.7, 0.08, 0.3, PAL.charcoal, 0.5, 0.8, 0.8, 0.02);
     put(g, sphere(0.03, 8), mat(PAL.red), 0.38, 0.88, 0.8);
     put(g, sphere(0.025, 8), mat(PAL.mustard), 0.58, 0.88, 0.8);
@@ -499,9 +594,22 @@ const FLOOR: Partial<Record<FurnitureKind, Builder>> = {
   },
 };
 
+export function arcadeScreen(frame: number): THREE.Material {
+  return texMat(`arcade:${frame}`, 64, 54, (c, w, h) => {
+    c.fillStyle = '#120d2a';
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = '#ffe294';
+    for (let i = 0; i < 10; i++) c.fillRect(6 + i * 5, 9 + ((i + frame) % 3) * 4, 3, 3);
+    c.fillStyle = '#55eee3';
+    if (frame) c.fillRect(16 + frame * 4, 36 - ((frame * 4) % 22), 2, 4);
+    c.fillStyle = '#ec86ba';
+    c.fillRect(8 + (frame ? (frame * 7) % 38 : 20), 40, 10, 5);
+  }, frame ? 1.1 : 0.42);
+}
+
 function counterBase(g: THREE.Group, drawers: boolean): void {
-  block(g, 1.0, 0.6, 0.62, PAL.white, 0.5, 0, 0.4, 0.015);
-  block(g, 1.02, 0.04, 0.68, PAL.woodLight, 0.5, 0.6, 0.4, 0.01);
+  block(g, 1.0, 0.6, 0.62, '#b76950', 0.5, 0, 0.4, 0.025);
+  block(g, 1.02, 0.04, 0.68, '#e7d2b6', 0.5, 0.6, 0.4, 0.012);
   if (drawers) for (let i = 0; i < 3; i++) block(g, 0.12, 0.02, 0.02, PAL.greyDark, 0.5, 0.15 + i * 0.16, 0.72, 0.008);
   else block(g, 0.02, 0.4, 0.02, PAL.grey, 0.5, 0.1, 0.72, 0.005);
 }
@@ -509,26 +617,33 @@ function counterBase(g: THREE.Group, drawers: boolean): void {
 function deskModel(g: THREE.Group, ctx: FurnitureCtx, hooks: FurnitureHooks, faceSouth: boolean): void {
   const top = DESK_TOPS[ctx.variant ?? ctx.theme?.deskVariant ?? 'wood'] ?? PAL.oak;
   const legs = mat(ctx.variant === 'white' ? PAL.greyDark : PAL.charcoal, { metal: 0.4, rough: 0.45 });
-  block(g, 1.9, 0.05, 0.86, top, 1, DESK_H - 0.05, 0.5, 0.02);
-  for (const x of [0.12, 1.88]) {
-    block(g, 0.05, DESK_H - 0.05, 0.05, legs, x, 0, 0.14, 0.01);
-    block(g, 0.05, DESK_H - 0.05, 0.05, legs, x, 0, 0.86, 0.01);
+  if (!place(g, 'craftedDesk', { w: 1.91, h: WORKTOP, d: 0.98 }, 1, 0, 0.5, faceSouth ? 0 : Math.PI)) {
+    block(g, 1.9, 0.05, 0.98, top, 1, WORKTOP - 0.05, 0.5, 0.022);
+    for (const x of [0.12, 1.88]) {
+      block(g, 0.05, WORKTOP - 0.05, 0.05, legs, x, 0, 0.14, 0.01);
+      block(g, 0.05, WORKTOP - 0.05, 0.05, legs, x, 0, 0.86, 0.01);
+    }
+    block(g, 1.7, 0.15, 0.02, top, 1, WORKTOP - 0.22, faceSouth ? 0.12 : 0.88, 0.005);
   }
-  block(g, 1.7, 0.18, 0.02, ctx.variant === 'white' ? PAL.grey : PAL.woodDark, 1, DESK_H - 0.24, faceSouth ? 0.12 : 0.88, 0.005);
-  const zBack = faceSouth ? 0.28 : 0.72;
-  const zFront = faceSouth ? 0.66 : 0.34;
-  monitor(g, 1, DESK_H, zBack, faceSouth, hooks);
-  keyboard(g, 1, DESK_H, zFront, faceSouth ? 0 : Math.PI);
+  const zBack = faceSouth ? 0.34 : 0.66;
+  const zFront = faceSouth ? 0.925 : 0.075;
+  const pad = pick(['#9eb3a3', '#9dabbe', '#c3a188', '#b7a5ba'], ctx.seed);
+  block(g, 0.57, 0.007, 0.17, pad, 1 + (faceSouth ? -0.065 : 0.065), WORKTOP - 0.001,
+    faceSouth ? 0.905 : 0.095, 0.003).castShadow = false;
+  monitor(g, 1, WORKTOP, zBack, faceSouth, hooks);
+  keyboard(g, 1, WORKTOP, zFront, faceSouth ? 0 : Math.PI);
   const rnd = mulberry(ctx.seed);
-  mug(g, faceSouth ? 1.6 : 0.4, DESK_H, zFront - (faceSouth ? 0.08 : -0.08), pick([PAL.coral, PAL.mustard, PAL.blue, PAL.cream, PAL.sage], ctx.seed));
-  if (rnd() < 0.6) {
-    const p = block(g, 0.22, 0.02, 0.3, PAL.paper, faceSouth ? 0.4 : 1.6, DESK_H, 0.5, 0.004);
-    p.rotation.y = (rnd() - 0.5) * 0.6;
+  const left = faceSouth ? 0.42 : 1.58;
+  const right = 2 - left;
+  hooks.cup = mug(g, right, WORKTOP, faceSouth ? 0.72 : 0.28, PAL.cream);
+  hooks.cup.userData.dynamic = true;
+  if (rnd() < 0.27) place(g, 'craftedLaptop', { w: 0.39 }, left, WORKTOP, 0.56, faceSouth ? -0.21 : Math.PI - 0.21);
+  else if (!place(g, 'craftedNotebook', { w: 0.31 }, left, WORKTOP, 0.52, (rnd() - 0.5) * 0.5)) {
+    block(g, 0.26, 0.015, 0.23, PAL.paper, left, WORKTOP, 0.52, 0.004);
   }
-  if (rnd() < 0.45) {
-    if (!place(g, pick<PropName>(['plantSmall1', 'plantSmall2', 'plantSmall3'], ctx.seed), { h: 0.2 }, faceSouth ? 0.2 : 1.8, DESK_H, zBack)) foliage(g, faceSouth ? 0.2 : 1.8, DESK_H, zBack, 0.07, PAL.leaf, ctx.seed + 3, 3);
-  }
-  else if (rnd() < 0.5) put(g, cyl(0.035, 0.02, 0.2, 8), mat(PAL.mustard), faceSouth ? 0.22 : 1.78, DESK_H, zBack);
+  if (rnd() < 0.42) place(g, 'craftedPlant', { h: 0.235 }, right, WORKTOP, zBack, ctx.seed % 7);
+  else place(g, 'craftedClock', { h: 0.14 }, right, WORKTOP, zBack, faceSouth ? 0.1 : Math.PI + 0.1);
+  if (rnd() < 0.30) place(g, 'craftedTower', { h: 0.36 }, faceSouth ? 1.62 : 0.38, 0, 0.5, faceSouth ? 0 : Math.PI);
 }
 
 // ------------------------------------------------------------------ itens de parede
@@ -545,12 +660,38 @@ const WALL: Partial<Record<FurnitureKind, Builder>> = {
     }
     block(g, w - 0.5, 0.03, 0.08, PAL.grey, 0, 0.72, 0.06, 0.01);
   },
-  window: (g, w) => {
-    const frame = mat(PAL.white);
-    block(g, w - 0.2, 1.05, 0.08, frame, 0, 0.6, 0.0, 0.02);
-    put(g, plane(w - 0.34, 0.9), mat('#cfe8f5', { emissive: '#bfe3ff', emissiveIntensity: 0.35, rough: 0.1 }), 0, 0.675, 0.045, { shadow: false });
+  window: (g, w, _h, ctx) => {
+    const frame = mat('#e6c59e', { rough: 0.67 });
+    const view = texMat('window:cozy-garden', 192, 88, (c, cw, ch) => {
+      const sky = c.createLinearGradient(0, 0, 0, ch);
+      sky.addColorStop(0, '#acd4df');
+      sky.addColorStop(1, '#f9ecd5');
+      c.fillStyle = sky;
+      c.fillRect(0, 0, cw, ch);
+      c.fillStyle = '#fff1d9';
+      c.beginPath();
+      c.arc(149, 28, 12, 0, Math.PI * 2);
+      c.fill();
+      for (const [color, x, y, rx] of [
+        ['#a9c8ab', 28, 88, 73], ['#a7c1ab', 156, 99, 77], ['#86a99a', 83, 107, 67],
+      ] as const) {
+        c.fillStyle = color;
+        c.beginPath();
+        c.ellipse(x, y, rx, 39, 0, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.fillStyle = 'rgba(255,250,235,0.20)';
+      c.beginPath();
+      c.moveTo(21, 0); c.lineTo(48, 0); c.lineTo(3, ch); c.lineTo(0, ch); c.lineTo(0, 46);
+      c.fill();
+    }, 0.07);
+    block(g, w - 0.2, 1.05, 0.08, frame, 0, 0.6, 0.0, 0.034);
+    put(g, plane(w - 0.34, 0.9), view, 0, 0.675, 0.045, { shadow: false });
     block(g, 0.04, 0.9, 0.03, frame, 0, 0.675, 0.05, 0.005);
-    block(g, w - 0.1, 0.05, 0.16, frame, 0, 0.57, 0.06, 0.015);
+    block(g, w - 0.1, 0.06, 0.22, frame, 0, 0.57, 0.09, 0.022);
+    if (ctx.seed % 3 === 0) {
+      place(g, 'craftedPlant', { h: 0.24, d: 0.15 }, (w - 0.56) / 2, 0.63, 0.115, ctx.seed % 7);
+    }
   },
   clock: (g, _w, _h, _ctx, hooks) => {
     const c = put(g, cyl(0.17, 0.17, 0.04, 24), mat(PAL.white), 0, 1.35, 0.02, { rx: Math.PI / 2 });

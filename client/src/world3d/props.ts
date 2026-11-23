@@ -43,6 +43,31 @@ export const PROP_FILES = {
   frameM: 'kaykit/pictureframe_medium.gltf',
   frameL: 'kaykit/pictureframe_large_A.gltf',
   shelfDecor: 'kaykit/shelf_B_large_decorated.gltf',
+  craftedDesk: '../office-collection/office/desk.glb',
+  craftedChair: '../office-collection/office/chair.glb',
+  craftedTower: '../office-collection/office/computer.glb',
+  craftedMonitor: '../office-collection/office/monitor.glb',
+  craftedKeyboard: '../office-collection/office/keyboard.glb',
+  craftedLaptop: '../office-collection/office/laptop.glb',
+  craftedMouse: '../office-collection/office/mouse.glb',
+  craftedNotebook: '../office-collection/office/notebook.glb',
+  craftedMug: '../office-collection/office/mug.glb',
+  craftedPlant: '../office-collection/office/plant.glb',
+  craftedBookcase: '../office-collection/office/bookcase.glb',
+  craftedLamp: '../office-collection/office/lamp.glb',
+  craftedSofa: '../office-collection/office/sofa.glb',
+  craftedLoungeChair: '../office-collection/office/lounge-chair.glb',
+  craftedCabinet: '../office-collection/office/cabinet.glb',
+  craftedCoffee: '../office-collection/office/coffee-machine.glb',
+  craftedService: '../office-collection/office/coffee-service.glb',
+  craftedRemote: '../office-collection/office/presentation-remote.glb',
+  craftedBooks: '../office-collection/office/books.glb',
+  craftedClock: '../office-collection/office/desk-clock.glb',
+  craftedGardenBench: '../office-collection/office/garden-bench.glb',
+  craftedGardenPlanter: '../office-collection/office/garden-planter.glb',
+  craftedGardenLamp: '../office-collection/office/garden-lamp.glb',
+  craftedGardenTree: '../office-collection/office/garden-tree.glb',
+  craftedPingPong: '../office-collection/office/pingpong-table.glb',
 } as const;
 
 export type PropName = keyof typeof PROP_FILES;
@@ -67,6 +92,7 @@ export function loadProps(): Promise<void> {
         try {
           const g = await loader.loadAsync(BASE + file);
           const obj = g.scene;
+          const crafted = name.startsWith('crafted');
           obj.updateMatrixWorld(true);
           const box = new THREE.Box3().setFromObject(obj);
           const c = box.getCenter(new THREE.Vector3());
@@ -83,7 +109,7 @@ export function loadProps(): Promise<void> {
             m.receiveShadow = true;
             for (const mm of Array.isArray(m.material) ? m.material : [m.material]) {
               const s = mm as THREE.MeshStandardMaterial;
-              if ('roughness' in s) {
+              if (!crafted && 'roughness' in s) {
                 s.roughness = Math.max(s.roughness, 0.6);
                 s.metalness = Math.min(s.metalness, 0.15);
               }
@@ -113,6 +139,12 @@ export function prop(name: PropName, fit: Fit, colors?: Record<string, string>):
   const o = t.obj.clone(true);
   const k = fit.h !== undefined ? fit.h / t.size.y : fit.w !== undefined ? fit.w / t.size.x : fit.d !== undefined ? fit.d / t.size.z : 1;
   o.scale.setScalar(k);
+  if (name.startsWith('crafted')) {
+    if (fit.w !== undefined) o.scale.x = fit.w / t.size.x;
+    if (fit.h !== undefined) o.scale.y = fit.h / t.size.y;
+    if (fit.d !== undefined) o.scale.z = fit.d / t.size.z;
+    o.name = name;
+  }
   if (colors) {
     o.traverse((x) => {
       const m = x as THREE.Mesh;

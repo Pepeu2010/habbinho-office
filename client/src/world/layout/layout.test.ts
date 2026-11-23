@@ -6,6 +6,7 @@ import { columnsFor, slotAt, slotColumn, slotRect, slotSide } from './geometry';
 import { layoutProjectRoom, roomVariant } from './room';
 import { layoutExterior, slotShell } from './exterior';
 import { RECEPTION_ID } from './core';
+import { PathFinder } from '../path/astar';
 import type { AreaLayout } from './types';
 
 const theme: RoomTheme = {
@@ -52,6 +53,20 @@ describe('mapeamento de slots', () => {
 });
 
 describe('layout do prédio', () => {
+  it('abre uma rota do corredor ao jardim no 3D, preservando o layout padrão', () => {
+    for (const cols of [3, 4, 6, 10]) {
+      const b = assembleBuilding(cols, [], 0, true);
+      const garden = b.spots.filter((s) => s.areaId.startsWith('core:jardim'));
+      expect(garden).toHaveLength(4);
+      const finder = new PathFinder(b.grid);
+      for (const spot of garden) {
+        const path: number[] = [];
+        expect(finder.find(2, b.corridor.rect.y + 2, spot.tx, spot.ty, path)).toBe(true);
+        expect(path.length).toBeGreaterThan(0);
+      }
+      expect(assembleBuilding(cols, []).grid.w).toBe(cols * COL_W);
+    }
+  });
   const slots = [0, 1, 2, 3, 4, 7];
   const rooms = roomsFor(slots);
   const cols = columnsFor(slots);

@@ -103,6 +103,18 @@ export interface WorldApi {
   /** (Opcional, aditivo) Qualidade gráfica (só o mundo 3D tem; o 2D não implementa). */
   getQuality?(): GraphicsQuality;
   setQuality?(q: GraphicsQuality): void;
+  /**
+   * (Opcional, aditivo) Passear (só o 3D): o usuário anda pelo escritório com um boneco próprio, em terceira ou
+   * primeira pessoa; null = desligado. O boneco do usuário nunca é um agente (fora do store, das métricas e do World).
+   */
+  getWalkMode?(): WalkView | null;
+  setWalkMode?(m: WalkView | null): void;
+  onWalkChange?(cb: (m: WalkView | null) => void): () => void;
+  editOwner?(): void;
+  /** Navegação visual entre as partes do prédio 3D. */
+  getBuildingView?(): BuildingView;
+  setBuildingView?(view: BuildingView): void;
+  onBuildingView?(cb: (view: BuildingView) => void): () => void;
   /** (Opcional, aditivo) Visitantes decorativos (NPCs) do mundo 3D: nunca são agentes nem entram em métricas. */
   getNpcLevel?(): NpcLevel;
   setNpcLevel?(l: NpcLevel): void;
@@ -125,6 +137,10 @@ export interface LookEditorHandle {
   /** (Opcional, aditivo) Mostra na prévia a aparência em edição (campos do editor da gaveta). */
   preview?(a: Appearance): void;
 }
+
+/** Câmera do modo Passear. */
+export type WalkView = 'third' | 'first' | 'above';
+export type BuildingView = 'office' | 'exterior' | 'mezzanine' | 'roof';
 
 /** Quantos visitantes decorativos (NPCs) circulam no escritório 3D. */
 export type NpcLevel = 'none' | 'few' | 'many';
@@ -152,7 +168,7 @@ export interface AgentSocial {
   losses: number;
   /** Colegas presentes com quem tem amizade ou rivalidade; `record` = [vitórias, derrotas] contra ele. */
   bonds: { id: string; name: string; kind: 'amizade' | 'rivalidade'; record: [number, number] | null }[];
-  /** O que está fazendo numa roda agora ("📺 Vendo futebol na TV com Rafaela"), ou null. */
+  /** O que está fazendo no tempo livre agora, ou null. */
   doing: string | null;
   /** Extrato: movimentações mais recentes primeiro. */
   ledger: { at: number; delta: number; icon: string; text: string }[];

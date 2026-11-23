@@ -118,3 +118,10 @@
 .w3d-labels [hidden] {
   display: none !important;
 }
+
+.w3d-tag.is-room .w3d-name {
+  color: #f6f4df;
+  background: #365d56ed;
+  border: 1px solid #b6d4bd66;
+  box-shadow: 0 4px 10px #253c4b38;
+}

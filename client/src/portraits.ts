@@ -8,6 +8,7 @@ export interface PortraitRequest {
   look?: 'f' | 'm';
   sub: boolean;
   parts?: AppearanceParts;
+  custom?: true;
   /** Lado do retrato em px CSS. */
   px: number;
 }

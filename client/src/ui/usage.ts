@@ -206,6 +206,8 @@ export class UsageCards {
   readonly el: HTMLElement;
   private list: KeyedList<AccountInfo>;
   private refs = new WeakMap<HTMLElement, CardRefs>();
+  private layoutObserver?: ResizeObserver;
+  private measuredBar?: HTMLElement;
 
   constructor(private ctx: UiContext) {
     this.el = h('div', { class: 'ui-usage', role: 'group', attrs: { 'aria-label': tr('Uso por conta') } });
@@ -215,7 +217,10 @@ export class UsageCards {
       update: (el, a) => this.updateCard(el, a),
     });
     // A largura da janela mudou: refaz a conta de cabem-ou-não (ver fit()).
-    if (typeof ResizeObserver === 'function') new ResizeObserver(() => this.fit()).observe(ctx.root);
+    if (typeof ResizeObserver === 'function') {
+      this.layoutObserver = new ResizeObserver(() => this.fit());
+      this.layoutObserver.observe(ctx.root);
+    }
   }
 
   render(): void {
@@ -244,6 +249,10 @@ export class UsageCards {
   private fit(): void {
     const bar = this.el.parentElement;
     if (!bar) return;
+    if (this.measuredBar !== bar) {
+      this.measuredBar = bar;
+      for (const c of bar.children) if (c !== this.el) this.layoutObserver?.observe(c);
+    }
     if (window.matchMedia('(max-width: 600px)').matches) {
       this.ctx.root.classList.remove('has-usage-row');
       return;
@@ -252,16 +261,29 @@ export class UsageCards {
     const px = (v: string) => Number.parseFloat(v) || 0;
     // Largura natural dos outros itens (scrollWidth): na linha única eles encolhem, na linha de baixo não, e a
     // decisão não pode depender de em qual dos dois estados a barra está.
-    const others = [...bar.children]
-      .filter((c) => c !== this.el && getComputedStyle(c).display !== 'none')
-      .map((c) => Math.max((c as HTMLElement).offsetWidth, c.scrollWidth));
+    const children = [...bar.children];
+    const split = children.indexOf(this.el);
+    const gap = px(barStyle.columnGap);
+    const widthOf = (items: Element[]) => items
+      .filter((c) => getComputedStyle(c).display !== 'none')
+      .reduce((width, c) => width + Math.max((c as HTMLElement).offsetWidth, c.scrollWidth) + gap, 0);
+    const left = widthOf(children.slice(0, split));
+    const right = widthOf(children.slice(split + 1));
+    const barWidth = bar.clientWidth - px(barStyle.paddingLeft) - px(barStyle.paddingRight);
+    const cardGap = px(getComputedStyle(this.el).columnGap);
+    const cards = [...this.el.children].map((c) => px(getComputedStyle(c).minWidth));
     const fits = usageRowFits({
-      barWidth: bar.clientWidth - px(barStyle.paddingLeft) - px(barStyle.paddingRight),
-      others,
-      gap: px(barStyle.columnGap),
-      cardGap: px(getComputedStyle(this.el).columnGap),
-      cards: [...this.el.children].map((c) => px(getComputedStyle(c).minWidth)),
+      barWidth,
+      others: [left, right],
+      gap: 0,
+      cardGap,
+      cards,
     });
+    // Aproxima a fila do centro da janela usando a folga que sobra no lado mais curto.
+    const minimum = cards.reduce((total, width) => total + width, 0) + cardGap * Math.max(0, cards.length - 1);
+    const spare = Math.max(0, barWidth - left - right - minimum);
+    setStyleVar(this.el, '--usage-pad-start', `${Math.min(spare, Math.max(0, right - left))}px`);
+    setStyleVar(this.el, '--usage-pad-end', `${Math.min(spare, Math.max(0, left - right))}px`);
     this.ctx.root.classList.toggle('has-usage-row', !fits);
   }
 

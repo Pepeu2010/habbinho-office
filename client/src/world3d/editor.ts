@@ -29,8 +29,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
   return e;
 }
 
-export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks: LookStore, appearance: Appearance): LookEditorHandle {
-  const draft: LookDraft = { badge: looks.get(info.id, info).badge };
+export function createLookEditor(assets: CharacterAssets, appearance: Appearance, agent?: { info: AgentInfo; looks: LookStore }): LookEditorHandle {
+  const draft: LookDraft = { badge: agent?.looks.get(agent.info.id, agent.info).badge };
   let current = appearance;
   let clip = 0;
   let disposed = false;
@@ -177,7 +177,8 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
   });
   badgeLabel.append(badge);
 
-  root.append(anim, el('p', 'ui-muted ui-small', tr('Arraste para girar · role para aproximar')), badgeLabel);
+  root.append(anim, el('p', 'ui-muted ui-small', tr('Arraste para girar · role para aproximar')));
+  if (agent) root.append(badgeLabel);
 
   return {
     el: root,
@@ -186,10 +187,10 @@ export function createLookEditor(info: AgentInfo, assets: CharacterAssets, looks
       dress();
     },
     save() {
-      looks.set(info, draft.badge ? draft : null);
+      agent?.looks.set(agent.info, draft.badge ? draft : null);
     },
     reset() {
-      looks.set(info, null);
+      agent?.looks.set(agent.info, null);
     },
     dispose() {
       disposed = true;

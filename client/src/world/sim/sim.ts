@@ -57,6 +57,7 @@ export interface SimMode {
    * de quem está à toa há muito tempo, cronômetro do balão); mais o visitante e as luzes da visita.
    */
   visit?: boolean;
+  campus?: boolean;
 }
 
 /** Luzes da visita: 'away' (pausado) apaga tudo; 'discreet' acende as salas vazias; 'live' é o `Sim` de sempre. */
@@ -147,11 +148,11 @@ export class Sim {
     private readonly art: ArtModule,
     private readonly options: () => WorldOptions,
     storage: StorageLike | null = browserStorage(),
-    mode: SimMode = {},
+    private readonly mode: SimMode = {},
   ) {
     this.visit = !!mode.visit;
     this.social = new Social(this, storage);
-    this.building = assembleBuilding(columnsFor([]), [], 0);
+    this.building = assembleBuilding(columnsFor([]), [], 0, mode.campus);
     this.finder = new PathFinder(this.building.grid);
     this.spots.setSpots(this.building.spots);
     for (const s of this.spots.ofKind('elevator')) this.elevators.push(new Elevator(this.elevators.length, s.id));
@@ -533,6 +534,7 @@ export class Sim {
       cols,
       present.map((r) => r.layout),
       this.layoutVersion + 1,
+      this.mode.campus,
     );
     this.building = building;
     this.layoutVersion++;

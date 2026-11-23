@@ -54,6 +54,20 @@ export interface LoadedModel {
   rig: ChibiRig;
 }
 
+const COLLECTION = ['ceo', 'developer', 'designer', 'data-analyst', 'marketing', 'hr', 'support', 'finance', 'sales', 'intern'] as const;
+type CollectionId = typeof COLLECTION[number];
+
+export interface CollectionModel {
+  scene: THREE.Object3D;
+  clips: Map<string, THREE.AnimationClip>;
+  scale: number;
+}
+
+/** A semente escolhe o boneco sem alterar a identidade salva do agente. */
+export function collectionFor(seed: number): CollectionId {
+  return COLLECTION[(seed >>> 0) % COLLECTION.length]!;
+}
+
 export const BONE = { root: 0, hips: 1, legL: 2, footL: 3, legR: 4, footR: 5, chest: 6, armL: 7, handL: 8, armR: 9, handR: 10, neck: 11, head: 12 } as const;
 
 const loader = new GLTFLoader();
@@ -142,6 +156,29 @@ export class CharacterAssets {
   private libraryReady: Promise<void>;
   private models = new Map<string, Promise<LoadedModel>>();
   private gltfs = new Map<string, Promise<GLTF>>();
+  private collection = new Map<CollectionId, Promise<CollectionModel>>();
+
+  loadCollection(seed: number): Promise<CollectionModel> {
+    const id = collectionFor(seed);
+    let pending = this.collection.get(id);
+    if (!pending) {
+      pending = loadGltf(`${BASE}office-collection/characters/${id}.glb`).then(({ scene, animations }) => {
+        scene.updateMatrixWorld(true);
+        scene.traverse((o) => {
+          const mesh = o as THREE.SkinnedMesh;
+          if (mesh.isSkinnedMesh) {
+            mesh.castShadow = true;
+            mesh.computeBoundingSphere();
+            if (mesh.boundingSphere) mesh.boundingSphere.radius += 0.35;
+          }
+        });
+        // A escala do elenco é comum, inclusive nas mãos e nos encaixes dos móveis.
+        return { scene, scale: 1, clips: new Map(animations.map((clip) => [clip.name, clip])) };
+      });
+      this.collection.set(id, pending);
+    }
+    return pending;
+  }
 
   constructor() {
     // o primeiro arquivo da biblioteca define o esqueleto de referência
@@ -222,7 +259,7 @@ export class CharacterAssets {
   }
 
   /** Cópia independente (esqueleto próprio) de um modelo carregado. */
-  instantiate(model: LoadedModel): THREE.Object3D {
+  instantiate(model: LoadedModel | CollectionModel): THREE.Object3D {
     const o = SkeletonUtils.clone(model.scene);
     o.scale.setScalar(model.scale);
     return o;

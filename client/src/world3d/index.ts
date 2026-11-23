@@ -2,10 +2,11 @@
 // a cidade e o timelapse continuam iguais. A simulação também é a mesma (world/sim/Sim): sessões, salas, caminhos,
 // vida social e estados vêm dela; este módulo só desenha em 3D e trata câmera e entrada.
 import * as THREE from 'three';
+import { tr } from '../../../shared/i18n';
 import * as artModule from '../art';
 import type { ArtModule } from '../art/api';
 import type { OfficeStore } from '../net/store';
-import { DEFAULT_WORLD_OPTIONS, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from '../world/api';
+import { DEFAULT_WORLD_OPTIONS, type BuildingView, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from '../world/api';
 import type { Camera } from '../world/camera';
 import { BUILDING_H, COL_W, TILE } from '../world/constants';
 import { rebaseSnapshot } from '../world/playback';
@@ -14,7 +15,7 @@ import { VISITOR_ID } from '../world/sim/visitor';
 import { SoundCues } from '../world/sound-cues';
 import { CharacterAssets, NatureKit } from './assets';
 import { Building3D } from './building';
-import { StrategicCamera } from './camera';
+import { DIST_MAX, DIST_MIN, StrategicCamera } from './camera';
 import { Avatars } from './characters';
 import { Fx } from './fx';
 import { NpcCrowd, type NpcLevel } from './npcs';
@@ -22,10 +23,13 @@ import { Labels } from './labels';
 import { LookStore } from './looks';
 import { createLookEditor } from './editor';
 import { loadProps } from './props';
+import { NEXT_VIEW, WalkMode, type WalkView } from './walk';
+import { createWalkHud } from './walk-hud';
+import { openOwnerEditor } from './owner-editor';
+import { rallySoundStep } from './pingpong';
 import { Portraits3D } from './portraits3d';
 import { setPortraitProvider } from '../portraits';
 import { appearanceFromSeed } from '../art';
-import { screenModeFor } from './screens';
 import { loadQuality, saveQuality, Stage, type Quality } from './stage';
 
 const art: ArtModule = artModule;
@@ -43,7 +47,7 @@ export interface World3DExtras {
   /** Números do último quadro, para depuração e benchmark. */
   stats(): { fps: number; calls: number; triangles: number; avatars: number };
   /** Acesso direto para depuração no console (window.habblaud.world.debug). */
-  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; npcs: () => Avatars; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
+  debug: { cam: StrategicCamera; stage: Stage; sim: () => Sim; building: Building3D; avatars: () => Avatars; npcs: () => Avatars; walk: WalkMode; view(x: number, z: number, dist: number, pitch: number, yaw: number): void };
 }
 
 export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & World3DExtras {
@@ -51,7 +55,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   canvas.style.imageRendering = 'auto';
   const stage = new Stage(canvas, loadQuality());
   const cam = new StrategicCamera(stage.camera);
-  let sim = new Sim(art, () => options);
+  let sim = new Sim(art, () => options, undefined, { campus: true });
   const assets = new CharacterAssets();
   // bustos do Habbinho para a lista, a gaveta e o feed
   const portraits = new Portraits3D(assets);
@@ -77,6 +81,61 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   stage.scene.add(npcAvatars.group);
   const labels = new Labels(document.body);
   canvas.after(labels.root);
+  // Passear: o boneco do usuário (fora do store, das métricas, da seleção e do World; walk.ts)
+  const walk = new WalkMode();
+  let ownerEditor: HTMLDialogElement | null = null;
+  const editOwner = () => {
+    if (ownerEditor?.open || suspended) return;
+    keys.clear();
+    shiftDown = false;
+    ownerEditor = openOwnerEditor(walk, assets, () => {
+      if (!ownerEditor?.open) ownerEditor = null;
+    });
+  };
+  const meAvatars = new Avatars(assets, looks);
+  stage.scene.add(meAvatars.group);
+  const walkCbs = new Set<(m: WalkView | null) => void>();
+  let shiftDown = false;
+  const setWalk = (m: WalkView | null) => {
+    if (m && (playback || suspended)) return;
+    const was = walk.view;
+    if (m) {
+      setBuildingView('office', false);
+      walk.enter(sim, m, cam.state.target);
+      follow = null;
+      cam.stop();
+    } else walk.exit(sim);
+    hud.show(walk.view);
+    // passeando, a lista e o feed saem da frente (voltam ao sair)
+    document.body.classList.toggle('w3d-walking', !!walk.view);
+    if (!m) {
+      drawerTarget = null;
+      hud.prompt(null);
+      if (was) overview(true);
+    }
+    if (was !== walk.view) walkCbs.forEach((cb) => cb(walk.view));
+  };
+  let walkTarget: ReturnType<WalkMode['target']> = null;
+  let drawerTarget: ReturnType<Building3D['nearbyDrawer']> = null;
+  const walkInteract = () => {
+    const now = Date.now();
+    if (drawerTarget && walk.active) return building.toggleDrawer(drawerTarget.id, now);
+    if (walkTarget?.kind === 'elevator' && !hud.floorsOpen) return hud.floors(true);
+    const agent = walk.interact(sim, now, walkTarget);
+    if (agent && sim.chars.has(agent)) setSelection({ type: 'agent', id: agent });
+  };
+  const hud = createWalkHud(document.body, {
+    view: () => walk.view && setWalk(NEXT_VIEW[walk.view]),
+    exit: () => setWalk(null),
+    editOwner,
+    interact: walkInteract,
+    floor: (view) => {
+      hud.floors(false);
+      // térreo: o elevador de sempre; mezanino e cobertura: sai do Passear e mostra o andar
+      if (view === 'office') walk.interact(sim, Date.now(), walkTarget);
+      else setBuildingView(view);
+    },
+  });
   void NatureKit.load().then((n) => building.setNature(n));
 
   let playback: WorldPlayback | null = null;
@@ -86,6 +145,12 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const socialCbs = new Set<(e: SocialEvent) => void>();
   const soundCbs = new Set<(c: SoundCue) => void>();
   const roomMenuCbs = new Set<(roomId: string, at: { x: number; y: number }) => void>();
+  const buildingCbs = new Set<(view: BuildingView) => void>();
+  const requestedView = new URLSearchParams(location.search).get('building');
+  let buildingView: BuildingView = requestedView === 'exterior' || requestedView === 'mezzanine' || requestedView === 'roof' ? requestedView : 'office';
+  building.setView(buildingView);
+  avatars.group.visible = npcAvatars.group.visible = fx.mesh.visible = buildingView === 'office';
+  labels.root.hidden = buildingView !== 'office';
   let selection: Selection = null;
   let hover: string | null = null;
   let follow: string | null = null;
@@ -115,19 +180,22 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const updateBounds = () => {
     const { w, d } = buildingSize();
     cam.bounds.set(new THREE.Vector3(-14, 0, -10), new THREE.Vector3(w + 14, 0, d + 16));
-    stage.setBounds(new THREE.Box3(new THREE.Vector3(-4, 0, -4), new THREE.Vector3(w + 4, 3, d + 6)));
+    stage.setBounds(new THREE.Box3(new THREE.Vector3(-4, 0, -4), new THREE.Vector3(w + 4, 15.25, d + 6)));
   };
 
   const overview = (animate = true) => {
     follow = null;
     const { w, d } = buildingSize();
-    const goal = { target: new THREE.Vector3(w / 2, 0, d / 2 + 0.5), yaw: 0, pitch: 0.95, dist: 0 };
-    cam.state.pitch = animate ? cam.state.pitch : goal.pitch;
-    const saved = cam.state.pitch;
-    cam.state.pitch = goal.pitch;
-    goal.dist = cam.fitDistance(w + 2, d + 2, viewW, viewH);
-    cam.state.pitch = saved;
-    if (animate) cam.animateTo(goal, 600);
+    const frame = buildingView === 'office'
+      ? { target: new THREE.Vector3(w / 2, 0, d / 2 + 0.5), yaw: -0.27, pitch: 1.04, w, d }
+      : building.architecture.framing(buildingView);
+    const s = Math.abs(Math.sin(frame.yaw)), c = Math.abs(Math.cos(frame.yaw));
+    const goal = {
+      ...frame,
+      dist: cam.fitDistance(frame.w * c + frame.d * s, frame.w * s + frame.d * c, viewW, viewH, frame.pitch),
+    };
+    cam.maxDistance = Math.min(DIST_MAX, goal.dist * 1.15);
+    if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) cam.animateTo(goal, 600);
     else {
       cam.stop();
       cam.state.target.copy(goal.target);
@@ -153,28 +221,55 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     if (changed) emitSelect();
   };
 
+  const setBuildingView = (view: BuildingView, frame = true) => {
+    if (view === buildingView) return;
+    if (view !== 'office' && walk.active) setWalk(null);
+    buildingView = view;
+    building.setView(view);
+    const inside = view === 'office';
+    avatars.group.visible = npcAvatars.group.visible = fx.mesh.visible = inside;
+    labels.root.hidden = !inside || suspended;
+    if (!inside) {
+      setSelection(null);
+      setHover(null);
+    }
+    buildingCbs.forEach((cb) => cb(view));
+    if (frame) {
+      userMoved = false;
+      overview();
+    }
+  };
+
+  const focusPoint = (av: NonNullable<ReturnType<typeof avatars.get>>): THREE.Vector3 => {
+    const feet = av.root.position;
+    return new THREE.Vector3(feet.x, THREE.MathUtils.lerp(feet.y, av.head.y, 0.47), feet.z);
+  };
+
   const focusAgent = (id: string, opts: { follow?: boolean } = {}) => {
     const av = avatars.get(id);
     const ch = sim.person(id);
     if (!ch) return;
+    setBuildingView('office', false);
     userMoved = true;
-    const p = av?.root.position ?? new THREE.Vector3(ch.x / TILE, 0, ch.y / TILE);
-    cam.animateTo({ target: new THREE.Vector3(p.x, 0.5, p.z), dist: Math.min(cam.state.dist, 13), pitch: Math.min(cam.state.pitch, 0.85) }, 560);
+    const target = av?.visible ? focusPoint(av) : new THREE.Vector3(ch.x / TILE, 0.5, ch.y / TILE);
+    const facing = ch.dir === 'up' ? Math.PI : ch.dir === 'left' ? -Math.PI / 2 : ch.dir === 'right' ? Math.PI / 2 : 0;
+    const side = Math.sin(cam.state.yaw - facing) < 0 ? -1 : 1;
+    const pitch = 0.64;
+    const dist = cam.fitDistance(4.7, 2.8, viewW, viewH, pitch);
+    cam.animateTo({ target, dist: Math.min(cam.state.dist, dist), pitch, yaw: facing + side * 0.62 }, 560);
     follow = opts.follow ? id : null;
   };
 
   const focusRoom = (id: string) => {
     const room = sim.rooms.get(id);
     if (!room) return;
+    setBuildingView('office', false);
     userMoved = true;
     follow = null;
     const r = room.layout.rect;
     const target = new THREE.Vector3(r.x + r.w / 2, 0, r.y + r.h / 2 + 1);
     const pitch = 0.92;
-    const saved = cam.state.pitch;
-    cam.state.pitch = pitch;
-    const dist = cam.fitDistance(r.w + 1, r.h, viewW, viewH);
-    cam.state.pitch = saved;
+    const dist = cam.fitDistance(r.w + 1, r.h, viewW, viewH, pitch);
     cam.animateTo({ target, dist, pitch }, 560);
   };
 
@@ -200,6 +295,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   };
 
   const pick = (sx: number, sy: number): Selection => {
+    if (buildingView !== 'office') return null;
     let best: string | null = null;
     let bestZ = Infinity;
     for (const [id, av] of avatars.list) {
@@ -267,7 +363,8 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
         cam.stop();
         canvas.style.cursor = drag.button === 2 ? 'move' : 'grabbing';
       }
-      if (drag.moved) {
+      if (drag.moved && walk.active) walk.look(dx, dy);
+      else if (drag.moved) {
         if (drag.button === 2 || (drag.button === 0 && e.shiftKey)) cam.rotate(-dx * 0.006, dy * 0.004);
         else if (drag.button === 0 || drag.button === 1) {
           const k = tilesPerPixel();
@@ -286,7 +383,13 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     canvas.style.cursor = hover ? 'pointer' : 'grab';
     if (d.moved) return;
     const p = local(e);
-    if (d.button === 0) setSelection(pick(p.x, p.y));
+    if (d.button === 0 && walk.active) {
+      // passeando: clicar num agente abre a gaveta; no chão, o boneco anda até lá
+      const hit = pick(p.x, p.y);
+      const g = hit?.type === 'agent' ? null : groundAt(p.x, p.y);
+      if (g) walk.goTo(sim, g.x, g.z);
+      else setSelection(hit);
+    } else if (d.button === 0) setSelection(pick(p.x, p.y));
     else if (d.button === 2 && roomMenuCbs.size) {
       const hit = pick(p.x, p.y);
       const g = groundAt(p.x, p.y);
@@ -317,7 +420,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     'wheel',
     (e) => {
       e.preventDefault();
-      if (suspended) return;
+      if (suspended || walk.active) return;
       userMoved = true;
       cam.stop();
       const factor = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0016);
@@ -340,8 +443,20 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   window.addEventListener(
     'keydown',
     (e) => {
-      if (suspended || e.ctrlKey || e.metaKey || e.altKey || typingTarget(e.target)) return;
+      if (suspended || ownerEditor?.open || e.ctrlKey || e.metaKey || e.altKey || typingTarget(e.target)) return;
       const k = e.key.toLowerCase();
+      shiftDown = e.shiftKey;
+      if (k === 'p' && !e.repeat) return setWalk(walk.active ? null : 'third');
+      if (walk.active) {
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+          keys.add(k);
+          e.preventDefault();
+        } else if (k === 'v' && !e.repeat && walk.view) setWalk(NEXT_VIEW[walk.view]);
+        else if (k === 'e' && !e.repeat) walkInteract();
+        else if (k === 'escape' && hud.floorsOpen) hud.floors(false);
+        else if (k === 'escape') setWalk(null);
+        return;
+      }
       if (['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
         keys.add(k);
         userMoved = true;
@@ -356,11 +471,18 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     },
     { signal: abort.signal },
   );
-  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()), { signal: abort.signal });
+  window.addEventListener(
+    'keyup',
+    (e) => {
+      keys.delete(e.key.toLowerCase());
+      shiftDown = e.shiftKey;
+    },
+    { signal: abort.signal },
+  );
   window.addEventListener('blur', () => keys.clear(), { signal: abort.signal });
 
   const applyKeys = (dt: number) => {
-    if (!keys.size) return;
+    if (!keys.size || walk.active) return;
     const sp = cam.state.dist * 0.9 * dt;
     let dx = 0;
     let dz = 0;
@@ -376,7 +498,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const zoomBy = (factor: number) => {
     if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return;
     userMoved = true;
-    cam.animateTo({ dist: THREE.MathUtils.clamp(cam.state.dist / factor, 5, 140) }, 240);
+    cam.animateTo({ dist: THREE.MathUtils.clamp(cam.state.dist / factor, DIST_MIN, DIST_MAX) }, 240);
   };
 
   // ------------------------------------------------------------------ dados
@@ -403,15 +525,16 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       return viewH;
     },
     get zoom() {
-      return THREE.MathUtils.clamp(40 / cam.state.dist, 0.5, 4);
+      return walk.active ? 2 : THREE.MathUtils.clamp(40 / cam.state.dist, 0.5, 4);
     },
     screenToWorld(sx: number, sy: number) {
-      const half = cam.state.dist * 0.55;
-      const t = cam.state.target;
-      return { x: (t.x + (sx ? half : -half)) * TILE, y: (t.z + (sy ? half * 0.7 : -half * 0.7)) * TILE };
+      const half = walk.active ? 8 : cam.state.dist * 0.55;
+      const x = walk.active ? walk.x : cam.state.target.x;
+      const z = walk.active ? walk.z : cam.state.target.z;
+      return { x: (x + (sx ? half : -half)) * TILE, y: (z + (sy ? half * 0.7 : -half * 0.7)) * TILE };
     },
   } as unknown as Camera;
-  let cues = new SoundCues(sim, soundCam);
+  let cues = new SoundCues(sim, soundCam, Math.random, rallySoundStep);
 
   // ------------------------------------------------------------------ laço
 
@@ -448,6 +571,19 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       // no timelapse não há visitantes: ele mostra só o que aconteceu de verdade
       if (sim.initialized) npcs.update(dt, now, playback ? 'none' : npcLevel);
       npcAvatars.update(sim, dt, now, null, null, npcs.list);
+      if (walk.active) {
+        walk.update(sim, realDt, real, keys, shiftDown);
+        meAvatars.update(sim, dt, now, null, null, walk.list);
+        const near: { id: string; x: number; z: number }[] = [];
+        for (const id of sim.chars.keys()) {
+          const a = avatars.get(id);
+          if (a?.visible) near.push({ id, x: a.root.position.x, z: a.root.position.z });
+        }
+        walkTarget = walk.target(sim, near);
+        if (walkTarget?.kind !== 'elevator' && hud.floorsOpen) hud.floors(false);
+        drawerTarget = walkTarget ? null : building.nearbyDrawer(walk.x, walk.z, real);
+        hud.prompt(walkTarget?.label ?? (drawerTarget ? drawerTarget.open ? tr('Fechar gaveta') : tr('Abrir gaveta') : null));
+      }
       // efeitos pedidos pela simulação (os mesmos do 2D): consumidos aqui, senão a lista só cresce
       for (const e of sim.effects) {
         const from = avatars.get(e.charId);
@@ -462,7 +598,11 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       sim.effects.length = 0;
       if (follow && !sim.chars.has(follow)) follow = null;
       const fav = follow ? avatars.get(follow) : undefined;
-      cam.update(performance.now(), fav ? new THREE.Vector3(fav.root.position.x, 0.5, fav.root.position.z) : null, realDt, viewW, viewH);
+      const meRoot = walk.active ? meAvatars.get('me:walker')?.root : undefined;
+      if (meRoot) {
+        const showBody = walk.applyCamera(stage.camera, meRoot.position, realDt, building.walkCameraLimit);
+        if (!showBody) meRoot.visible = false;
+      } else cam.update(performance.now(), fav?.visible ? focusPoint(fav) : null, realDt, viewW, viewH);
       // dia/noite
       const clock = playback ? new Date(playback.clock()) : new Date(real);
       const mode = options.daylight ?? (options.dayNight ? 'auto' : 'day');
@@ -470,20 +610,18 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       stage.setTime(hour);
       // névoa só no horizonte, qualquer que seja o zoom
       const fog = stage.scene.fog as THREE.Fog;
-      fog.near = cam.state.dist * 1.6 + 30;
-      fog.far = cam.state.dist * 4 + 120;
-      building.update(sim, now, stage.camera, cam.state.target, stage.night, realDt);
-      // telas das mesas acompanham a atividade de quem está sentado
-      for (const ch of sim.chars.values()) {
-        const spot = ch.atSpot ? sim.spots.get(ch.atSpot) : undefined;
-        if (!spot?.deskId) continue;
-        const scr = building.screens.get(spot.deskId);
-        if (scr) scr.material = screenModeFor(ch, sim.rooms.get(ch.roomId)?.theme.accent);
-      }
+      fog.near = meRoot ? 28 : cam.state.dist * 1.6 + 30;
+      fog.far = meRoot ? 110 : cam.state.dist * 4 + 120;
+      building.update(sim, now, stage.camera, meRoot ? meRoot.position : cam.state.target, stage.night, realDt, {
+        walking: walk.active,
+        extras: [...npcs.list.values(), ...walk.list.values()],
+        coffeeSource: walk.coffeeSource(real),
+      });
       fx.update(realDt, stage.camera);
-      stage.render();
-      labels.update(sim, (id) => avatars.get(id), stage.camera, viewW, viewH, now, options, sel, hover, npcAvatars.list.values());
-      if (soundCbs.size && !playback) cues.update(now, (c) => soundCbs.forEach((cb) => cb(c)));
+      if (!ownerEditor?.open) stage.render();
+      labels.update(sim, (id) => avatars.get(id), stage.camera, viewW, viewH, now, options, sel, hover,
+        npcAvatars.list.values(), !walk.active && cam.state.dist > 47);
+      if (soundCbs.size && !playback && buildingView === 'office') cues.update(now, (c) => soundCbs.forEach((cb) => cb(c)));
       if (mouse && !drag) {
         const hit = pick(mouse.x, mouse.y);
         setHover(hit?.type === 'agent' ? hit.id : null);
@@ -514,13 +652,14 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const rebuild = () => {
     npcs.clear();
     sim.social.wallets.save(Date.now());
-    sim = new Sim(art, () => options, playback ? null : undefined);
+    sim = new Sim(art, () => options, playback ? null : undefined, { campus: true });
     stage.scene.remove(avatars.group);
     avatars.dispose();
     avatars = new Avatars(assets, looks, onReact);
+    avatars.group.visible = buildingView === 'office';
     stage.scene.add(avatars.group);
     building.dispose();
-    cues = new SoundCues(sim, soundCam);
+    cues = new SoundCues(sim, soundCam, Math.random, rallySoundStep);
     lastCols = -1;
     setHover(null);
   };
@@ -555,6 +694,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       if (!userMoved && framed) overview(true);
     },
     screenPositionOf: (id) => {
+      if (buildingView !== 'office') return null;
       const av = avatars.get(id);
       if (!av || !av.visible) return null;
       toScreen(av.head, tmpA);
@@ -571,6 +711,10 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       return () => void socialCbs.delete(cb);
     },
     setPlayback: (p) => {
+      if (p) {
+        setWalk(null);
+        setBuildingView('office');
+      }
       playback = p;
       worldNow = p ? p.clock() : 0;
       rebuild();
@@ -581,8 +725,9 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     },
     setSuspended: (on) => {
       if (on === suspended) return;
+      if (on) setWalk(null);
       suspended = on;
-      labels.root.hidden = on;
+      labels.root.hidden = on || buildingView !== 'office';
       if (on) {
         cancelAnimationFrame(raf);
         suspendedAt = Date.now();
@@ -607,6 +752,10 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       avatars.dispose();
       npcs.clear();
       npcAvatars.dispose();
+      walk.exit(sim);
+      ownerEditor?.close();
+      meAvatars.dispose();
+      hud.dispose();
       building.dispose();
       fx.dispose();
       stage.dispose();
@@ -614,11 +763,25 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       hoverCbs.clear();
       socialCbs.clear();
       soundCbs.clear();
+      buildingCbs.clear();
     },
     lookEditor: (id) => {
       const ch = sim.chars.get(id);
       const info = ch?.info ?? store.snapshot?.agents.find((a) => a.id === id);
-      return info ? createLookEditor(info, assets, looks, ch?.appearance ?? appearanceFromSeed(info.seed, { look: info.look })) : null;
+      return info ? createLookEditor(assets, ch?.appearance ?? appearanceFromSeed(info.seed, { look: info.look }), { info, looks }) : null;
+    },
+    editOwner,
+    getWalkMode: () => walk.view,
+    getBuildingView: () => buildingView,
+    setBuildingView: (view) => setBuildingView(view),
+    onBuildingView: (cb) => {
+      buildingCbs.add(cb);
+      return () => void buildingCbs.delete(cb);
+    },
+    setWalkMode: (m) => setWalk(m),
+    onWalkChange: (cb) => {
+      walkCbs.add(cb);
+      return () => void walkCbs.delete(cb);
     },
     getNpcLevel: () => npcLevel,
     setNpcLevel: (l) => {
@@ -640,6 +803,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       building,
       avatars: () => avatars,
       npcs: () => npcAvatars,
+      walk,
       view: (x, z, dist, pitch, yaw) => {
         userMoved = true;
         framed = true;

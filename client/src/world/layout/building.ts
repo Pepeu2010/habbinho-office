@@ -5,6 +5,7 @@ import { BLOCKED, FREE, SEAT, WalkGrid } from '../path/grid';
 import { furnitureBlocks, furnitureIsSeat } from './builder';
 import { layoutCafe, layoutLibrary, layoutLounge, layoutMeeting, layoutReception, layoutRestroom } from './core';
 import { layoutCorridor } from './corridor';
+import { campusGarden } from './exterior';
 import { buildingRect } from './geometry';
 import type { AreaLayout, SpotDef, TileRect } from './types';
 
@@ -41,14 +42,15 @@ export function paintArea(grid: WalkGrid, area: AreaLayout): void {
 }
 
 export function buildWalkGrid(cols: number, areas: readonly AreaLayout[], version = 0): WalkGrid {
-  const grid = new WalkGrid(cols * COL_W, BUILDING_H, version);
+  const width = Math.max(cols * COL_W, ...areas.map((a) => a.rect.x + a.rect.w));
+  const grid = new WalkGrid(width, BUILDING_H, version);
   for (const a of areas) paintArea(grid, a);
   return grid;
 }
 
-export function assembleBuilding(cols: number, rooms: readonly AreaLayout[], version = 0): BuildingLayout {
-  const core = coreAreas();
-  const corridor = layoutCorridor(cols);
+export function assembleBuilding(cols: number, rooms: readonly AreaLayout[], version = 0, campus = false): BuildingLayout {
+  const core = campus ? [...coreAreas(), campusGarden(cols)] : coreAreas();
+  const corridor = layoutCorridor(cols, campus);
   const all = [...core, corridor, ...rooms];
   const grid = buildWalkGrid(cols, all, version);
   const spots: SpotDef[] = [];
