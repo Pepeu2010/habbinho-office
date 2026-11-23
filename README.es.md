@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/office.gif" width="820" alt="Animación de una sala de Habblaud: personajes tecleando en los escritorios, subagentes con gafete y globos de actividad" />
+  <img src="docs/screenshots/3d/overview.png" width="820" alt="Vista desde arriba de la oficina 3D de Habbinho Office: un edificio con salas, cocina, lounge y jardín, y agentes trabajando en sus mesas" />
 </p>
 
 ---

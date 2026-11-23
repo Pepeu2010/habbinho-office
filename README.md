@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/office.gif" width="820" alt="Animation of a Habblaud room: characters typing at their desks, subagents with badges and activity bubbles" />
+  <img src="docs/screenshots/3d/overview.png" width="820" alt="Top view of the Habbinho Office 3D office: a building with rooms, kitchen, lounge and garden, and agents working at their desks" />
 </p>
 
 ---
