@@ -39,6 +39,26 @@ Tout tourne sur votre machine, en lisant les fichiers que Claude Code écrit dé
 `alias` de votre shell, pour attribuer une lettre à chaque compte). Rien ne quitte l'ordinateur : Habblaud ne lit
 aucun identifiant et ne fait aucun appel externe.
 
+## Ce que ce fork ajoute
+
+Ce dépôt est un fork de [Habblaud](https://github.com/marmottajr/habblaud), de Márcio Junior (licence MIT). La base est le code d'origine ; ce fork
+ajoute :
+
+- **Bureau 3D** (Three.js) : bascule 2D/3D, immeuble avec rez-de-chaussée, mezzanine et toit-terrasse, campus en
+  maquette avec place, lac et jardin, finitions chaleureuses et caméras dédiées.
+- **Habbinho** : un personnage chibi original, avec rig et 17 animations, un éditeur de personnage avec aperçu 3D et
+  un éditeur pour le propriétaire du bureau.
+- **Un bureau plus vivant** : réactions à ce qui se passe vraiment (petit saut et confettis à la livraison), effets,
+  visiteurs, pauses (ping-pong, lecture, étirements, borne d'arcade) et meubles interactifs.
+- **Mode Promenade** (touche P) : marchez avec ZQSD/WASD ou en cliquant au sol, asseyez-vous, prenez un café, prenez
+  l'ascenseur et saluez les agents, en troisième personne, première personne ou vue de dessus.
+- **Bibliothèque et salle de réunion** au cœur de l'immeuble, en 2D et en 3D.
+- **Agents avec modèles locaux** (Ollama et LM Studio).
+- **OpenCode** dans le bureau (inclut la PR #211 de l'original, pas encore publiée là-bas) et **OpenBot Desktop**.
+- **Nouvelle interface** : panneaux en verre indigo et barre des comptes centrée avec l'icône de chaque outil.
+
+Les détails sont dans le [CHANGELOG](CHANGELOG.md) (section « Não lançado ») et dans [docs/3d.md](docs/3d.md).
+
 ## Sommaire
 
 - [À quoi ça ressemble](#à-quoi-ça-ressemble)
@@ -139,7 +159,7 @@ l'immeuble ne garde pas de trous et rétrécit tout seul.
 ### 1. Téléchargez le projet
 
 ```bash
-git clone https://github.com/marmottajr/habblaud.git
+git clone https://github.com/Pepeu2010/habblaud.git
 cd habblaud
 npm install
 ```
