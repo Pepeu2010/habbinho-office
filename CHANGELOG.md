@@ -12,6 +12,8 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Bonecos personalizados mais caprichados.** O dono e os agentes editados no 3D usam o boneco do elenco Blender
+  mais parecido (penteado e acessório) repintado com as cores da aparência, no lugar do boneco montado em código.
 - **Dono do escritório.** Editor com prévia 3D e controles de nome, cabelo, pele, roupa e acessórios para o personagem
   que você usa no modo Passear. O visual fica salvo neste navegador.
 - **Campus 3D.** Terreno em forma de maquete com praça, bancos, paraciclos e lago. A visão geral agrupa os nomes por
@@ -92,6 +94,7 @@ do meio (0.**3**.0).
 
 ### Corrigido
 
+- **Sentar e levantar no modo andar.** Ao levantar de um banco, sofá ou poltrona o dono não fica mais em pé preso dentro do móvel: volta para onde estava (ou para o chão livre mais perto). O clicar-para-ir não trava mais num assento no meio do caminho, e a xícara some da mão quando o café acaba, mesmo sentado.
 - As salas dos perfis do OpenBot usam nomes legíveis no mapa, na barra lateral e nos detalhes. Projetos com pastas
   próprias e nomes definidos pelo usuário continuam com seus nomes.
 

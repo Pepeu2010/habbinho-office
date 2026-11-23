@@ -214,7 +214,10 @@ export class WalkMode {
       const sp = Math.min(d, (shift ? RUN_SPEED : WALK_SPEED) * dt);
       if (d < 0.05) this.path.splice(0, 2);
       else {
+        const [ox, oz] = [this.x, this.z];
         [this.x, this.z] = slide(this.cell(sim), this.x, this.z, (dx / d) * sp, (dz / d) * sp);
+        // o A* pode cortar por um assento, onde o slide não entra: parado, desiste do caminho em vez de travar
+        if (this.x === ox && this.z === oz) this.path.length = 0;
         ch.setPose(shift ? 'run' : 'walk', this.held(now));
         ch.dir = dirOf(dx, dz);
       }
@@ -235,7 +238,9 @@ export class WalkMode {
       ch.setPose(now < this.drinkUntil ? 'drink' : 'stand', this.held(now));
       ch.dir = dirOf(-Math.sin(this.yaw), -Math.cos(this.yaw));
     }
-    if (!ch.atSpot && ch.held !== this.held(now)) ch.setPose(ch.pose, this.held(now));
+    // sentado também: a xícara some quando o café acaba (digitando, mãos livres)
+    const want = ch.pose === 'type' ? 'none' : this.held(now);
+    if (ch.held !== want) ch.setPose(ch.pose, want);
     // elevador chamado: as portas fecham sozinhas depois de um tempo
     if (this.calledElevator >= 0 && now - this.calledAt > 6000) {
       sim.elevators[this.calledElevator]?.release(ME, now);
@@ -261,7 +266,7 @@ export class WalkMode {
   /** Clicar-para-ir: caminho pela grade até o tile livre mais perto do ponto. Devolve se achou caminho. */
   goTo(sim: Sim, x: number, z: number): boolean {
     if (!this.active || this.ride) return false;
-    const t = sim.building.grid.nearestWalkable(Math.floor(x), Math.floor(z), 2);
+    const t = sim.building.grid.nearestWalkable(Math.floor(x), Math.floor(z), 2, true);
     if (!t) return false;
     this.standUp(sim);
     if (!sim.finder.find(Math.floor(this.x), Math.floor(this.z), t.x, t.y, this.path)) return false;
@@ -399,8 +404,8 @@ export class WalkMode {
     ch.atSpot = null;
     ch.seated = false;
     ch.sortY = null;
-    // volta para um tile livre perto do lugar
-    const t = s ? sim.building.grid.nearestWalkable(s.tx, s.ty, 3) : null;
+    // volta para onde estava antes de sentar; se não couber, para um tile livre (não assento: o slide prende lá dentro)
+    const t = !blockedAt(this.cell(sim), this.x, this.z) ? null : s ? sim.building.grid.nearestWalkable(s.tx, s.ty, 3, true) : null;
     if (t) {
       this.x = t.x + 0.5;
       this.z = t.y + 0.5;
