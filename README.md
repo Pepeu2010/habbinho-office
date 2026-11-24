@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/3d/overview.png" width="820" alt="Top view of the Habbinho Office 3D office: a building with rooms, kitchen, lounge and garden, and agents working at their desks" />
+  <img src="docs/screenshots/3d/hero.jpg" width="820" alt="Top view of the Habbinho Office 3D office: a building with rooms, kitchen, lounge and garden, and agents working at their desks" />
 </p>
 
 ---
@@ -57,6 +57,14 @@ fork adds:
 - **New interface**: indigo glass panels and a centered accounts bar with each tool's icon.
 
 Details are in the [CHANGELOG](CHANGELOG.md) ("Não lançado" section) and in [docs/3d.md](docs/3d.md).
+
+## Gallery
+
+<table>
+<tr><td><img src="docs/screenshots/3d/mesas.jpg" width="400" alt="Agents working at their desks" /><br/><sub>Agents working at their desks</sub></td><td><img src="docs/screenshots/3d/campus-dia.jpg" width="400" alt="The campus by day" /><br/><sub>The campus by day</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/campus-noite.jpg" width="400" alt="The campus at night, with the rooms lit" /><br/><sub>The campus at night, with the rooms lit</sub></td><td><img src="docs/screenshots/3d/habbinhos.jpg" width="400" alt="The Habbinho cast" /><br/><sub>The Habbinho cast</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/passear-3a-pessoa.jpg" width="400" alt="Walk mode in third person" /><br/><sub>Walk mode in third person</sub></td></tr>
+</table>
 
 ## Contents
 

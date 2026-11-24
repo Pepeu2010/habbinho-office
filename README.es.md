@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/3d/overview.png" width="820" alt="Vista desde arriba de la oficina 3D de Habbinho Office: un edificio con salas, cocina, lounge y jardín, y agentes trabajando en sus mesas" />
+  <img src="docs/screenshots/3d/hero.jpg" width="820" alt="Vista desde arriba de la oficina 3D de Habbinho Office: un edificio con salas, cocina, lounge y jardín, y agentes trabajando en sus mesas" />
 </p>
 
 ---
@@ -57,6 +57,14 @@ fork añade:
 - **Interfaz nueva**: paneles de vidrio índigo y barra de cuentas centrada con el icono de cada herramienta.
 
 Los detalles están en el [CHANGELOG](CHANGELOG.md) (sección "Não lançado") y en [docs/3d.md](docs/3d.md).
+
+## Galería
+
+<table>
+<tr><td><img src="docs/screenshots/3d/mesas.jpg" width="400" alt="Agentes trabajando en sus mesas" /><br/><sub>Agentes trabajando en sus mesas</sub></td><td><img src="docs/screenshots/3d/campus-dia.jpg" width="400" alt="El campus de día" /><br/><sub>El campus de día</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/campus-noite.jpg" width="400" alt="El campus de noche, con las salas iluminadas" /><br/><sub>El campus de noche, con las salas iluminadas</sub></td><td><img src="docs/screenshots/3d/habbinhos.jpg" width="400" alt="El elenco de Habbinhos" /><br/><sub>El elenco de Habbinhos</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/passear-3a-pessoa.jpg" width="400" alt="Modo Pasear en tercera persona" /><br/><sub>Modo Pasear en tercera persona</sub></td></tr>
+</table>
 
 ## Índice
 

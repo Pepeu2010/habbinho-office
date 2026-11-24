@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/3d/overview.png" width="820" alt="Vue de dessus du bureau 3D de Habbinho Office : un bâtiment avec salles, cuisine, lounge et jardin, et des agents au travail à leurs bureaux" />
+  <img src="docs/screenshots/3d/hero.jpg" width="820" alt="Vue de dessus du bureau 3D de Habbinho Office : un bâtiment avec salles, cuisine, lounge et jardin, et des agents au travail à leurs bureaux" />
 </p>
 
 ---
@@ -58,6 +58,14 @@ ajoute :
 - **Nouvelle interface** : panneaux en verre indigo et barre des comptes centrée avec l'icône de chaque outil.
 
 Les détails sont dans le [CHANGELOG](CHANGELOG.md) (section « Não lançado ») et dans [docs/3d.md](docs/3d.md).
+
+## Galerie
+
+<table>
+<tr><td><img src="docs/screenshots/3d/mesas.jpg" width="400" alt="Des agents au travail à leurs bureaux" /><br/><sub>Des agents au travail à leurs bureaux</sub></td><td><img src="docs/screenshots/3d/campus-dia.jpg" width="400" alt="Le campus de jour" /><br/><sub>Le campus de jour</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/campus-noite.jpg" width="400" alt="Le campus de nuit, salles éclairées" /><br/><sub>Le campus de nuit, salles éclairées</sub></td><td><img src="docs/screenshots/3d/habbinhos.jpg" width="400" alt="La troupe des Habbinhos" /><br/><sub>La troupe des Habbinhos</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/passear-3a-pessoa.jpg" width="400" alt="Mode Promenade à la troisième personne" /><br/><sub>Mode Promenade à la troisième personne</sub></td></tr>
+</table>
 
 ## Sommaire
 

@@ -20,13 +20,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/3d/overview.png" width="820" alt="Vista de cima do escritório 3D do Habbinho Office: prédio com salas, copa, lounge e jardim, e agentes trabalhando nas mesas" />
+  <img src="docs/screenshots/3d/hero.jpg" width="820" alt="Vista de cima do escritório 3D do Habbinho Office: prédio com salas, copa, lounge e jardim, e agentes trabalhando nas mesas" />
 </p>
 
 ---
 
 Você abre o Claude Code em vários projetos, dispara subagentes, deixa tarefas rodando… e perde a noção de quem está
-fazendo o quê. O **Habblaud** transforma isso num escritório que dá para entender de relance: quem está digitando,
+fazendo o quê. O **Habbinho Office** transforma isso num escritório que dá para entender de relance: quem está digitando,
 quem levantou a mão porque **precisa de você**, quem entregou o trabalho e foi embora, quem foi tomar um café
 enquanto espera a próxima instrução — e quanto de cada conta você já gastou na sessão de 5 horas e na semana.
 
@@ -56,6 +56,14 @@ este fork acrescenta:
 - **Interface nova**: painéis em vidro índigo e barra de contas centralizada com o ícone de cada ferramenta.
 
 Os detalhes estão no [CHANGELOG](CHANGELOG.md) (seção "Não lançado") e em [docs/3d.md](docs/3d.md).
+
+## Galeria
+
+<table>
+<tr><td><img src="docs/screenshots/3d/mesas.jpg" width="400" alt="Agentes trabalhando nas mesas" /><br/><sub>Agentes trabalhando nas mesas</sub></td><td><img src="docs/screenshots/3d/campus-dia.jpg" width="400" alt="O campus de dia" /><br/><sub>O campus de dia</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/campus-noite.jpg" width="400" alt="O campus à noite, com as salas acesas" /><br/><sub>O campus à noite, com as salas acesas</sub></td><td><img src="docs/screenshots/3d/habbinhos.jpg" width="400" alt="O elenco de Habbinhos" /><br/><sub>O elenco de Habbinhos</sub></td></tr>
+<tr><td><img src="docs/screenshots/3d/passear-3a-pessoa.jpg" width="400" alt="Modo Passear em 3ª pessoa" /><br/><sub>Modo Passear em 3ª pessoa</sub></td></tr>
+</table>
 
 ## Sumário
 

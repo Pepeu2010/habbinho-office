@@ -12,6 +12,8 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **README com galeria.** Imagem de capa nova e galeria com as melhores cenas do escritório 3D (mesas, campus
+  de dia e à noite, elenco e modo Passear) nos quatro idiomas.
 - **Escritório 3D mais bonitinho.** Reflexo suave de estúdio nos materiais, sombras de baixo num lavanda pastel,
   contorno de desenho nos bonecos, plantas balançando com a brisa e vinheta leve. Na qualidade alta e ultra, as luzes
   brilham à noite (abajur, telas, janelas) e a visão geral ganha desfoque de maquete nas bordas (some no modo andar).
