@@ -1,5 +1,5 @@
 // Corredor que atravessa o prédio de oeste a leste, com bebedouros, bancos e plantas.
-import { COL_W, CORE_COLS, CORRIDOR_H, CORRIDOR_Y } from '../constants';
+import { COL_W, CORE_COLS, FLOOR_COLS, CORRIDOR_H, CORRIDOR_Y } from '../constants';
 import { AreaBuilder } from './builder';
 import type { AreaLayout } from './types';
 
@@ -16,11 +16,16 @@ export function layoutCorridor(cols: number, campus = false): AreaLayout {
   b.floor('concrete', 0, 0, w, CORRIDOR_H, 501);
   // fachadas de vidro nas pontas do corredor (entrada principal a oeste)
   for (let ly = 0; ly < CORRIDOR_H; ly++) {
-    if (campus && Math.abs(ly + 0.5 - CORRIDOR_H / 2) < 1.1) continue;
-    b.furn('glass_partition', 0, ly, ly === 0 || ly === CORRIDOR_H - 1 ? 'end' : 'v', { order: 0.1 });
+    if (!campus || Math.abs(ly + 0.5 - CORRIDOR_H / 2) >= 1.1) b.furn('glass_partition', 0, ly, ly === 0 || ly === CORRIDOR_H - 1 ? 'end' : 'v', { order: 0.1 });
     b.furn('glass_partition', w - 1, ly, ly === 0 || ly === CORRIDOR_H - 1 ? 'end' : 'v', { order: 0.1 });
   }
   b.walk(1, 0, w - 2, CORRIDOR_H);
+  // divisa entre andares: no grid os andares ficam lado a lado, então o corredor é fechado (só o elevador leva de um ao outro)
+  for (let x = FLOOR_COLS * COL_W; x < w; x += FLOOR_COLS * COL_W) {
+    b.block(x - 1, 0, 2, CORRIDOR_H);
+    // vidro nas duas pontas da divisa: no 3D cada andar aparece sozinho, fechado
+    for (let ly = 0; ly < CORRIDOR_H; ly++) for (const gx of [x - 1, x]) b.furn('glass_partition', gx, ly, ly === 0 || ly === CORRIDOR_H - 1 ? 'end' : 'v', { order: 0.1 });
+  }
 
   for (let c = 0; c < cols; c++) {
     const x = c * COL_W;
@@ -47,7 +52,7 @@ export function layoutCorridor(cols: number, campus = false): AreaLayout {
       if (k % 2 === 1) b.furn('plant_small', x + 12, 4, SMALL[(k + 1) % SMALL.length], { order: 0.5 });
     }
     // planta alta onde as paredes das salas se encontram (uma coluna sim, outra não)
-    if (!last && c % 2 === 1) b.furn('plant_tall', x + 15, 4, TALL[(c + 1) % TALL.length], { order: 0.5 });
+    if (!last && c % 2 === 1 && (c + 1) % FLOOR_COLS) b.furn('plant_tall', x + 15, 4, TALL[(c + 1) % TALL.length], { order: 0.5 });
     // passadeira estreita (um trecho por coluna), centrada no corredor
     b.rug(x + 2, 1.95, COL_W - 4, 1.1, RUNNERS[c % RUNNERS.length], 502 + c);
     // pontos de conversa no meio do corredor

@@ -4,7 +4,7 @@ import type { AppearanceParts } from '../../../../shared/appearance';
 import type { AgentInfo, OfficeSnapshot, RoomInfo, ShellJob } from '../../../../shared/types';
 import type { Appearance, ArtModule, RoomTheme } from '../../art/api';
 import { DEFAULT_WORLD_OPTIONS } from '../api';
-import { CORE_COLS } from '../constants';
+import { FLOOR_COLS } from '../constants';
 import type { Character } from './character';
 import { SHELL_DONE_TOOL, Sim } from './sim';
 
@@ -222,6 +222,31 @@ describe('simulação do escritório', () => {
     expect(['check', 'heart']).toContain(ana.icon);
     run(sim, clock, 60, () => !sim.chars.has('ana:s1'));
     expect(sim.chars.has('ana:s1')).toBe(false);
+  });
+
+  it('pai reúne 2+ subagentes no quadro e a entrega mostra o resumo real', () => {
+    const sim = newSim();
+    const clock = { now: T0 };
+    const rooms = [room('/a', 0)];
+    const act = (id: string, kind: 'read' | 'delegate') => ({ id, kind, icon: '•', text: kind, at: clock.now });
+    const main = agent('ana', '/a', 'working', { activity: act('a1', 'read') });
+    sim.applySnapshot(snap(rooms, [main]), clock.now);
+    run(sim, clock, 3);
+    const subs = ['s1', 's2'].map((s) => agent(`ana:${s}`, '/a', 'working', { kind: 'sub', parentId: 'ana', name: s }));
+    const boss = { ...main, activity: act('a2', 'delegate') };
+    sim.applySnapshot(snap(rooms, [boss, ...subs], 2), clock.now);
+    const ana = sim.chars.get('ana')!;
+    expect(ana.briefingUntil).toBeGreaterThan(0);
+    let sat = false;
+    run(sim, clock, 40, () => (sat = [...sim.chars.values()].filter((c) => c.briefed && !c.step?.t.startsWith('go') && Math.abs(c.tx - ana.tx) + Math.abs(c.ty - ana.ty) <= 2).length >= 2));
+    expect(sat).toBe(true);
+    const s1 = sim.chars.get('ana:s1')!;
+    run(sim, clock, 60, () => s1.atSpot !== null && s1.atSpot === s1.homeSpot && !s1.step && !s1.queue.length);
+    const said = { id: 'r1', kind: 'respond' as const, icon: '💬', text: 'Escrevendo', detail: 'Achei 3 arquivos de rota.', at: clock.now };
+    sim.applySnapshot(snap(rooms, [boss, { ...subs[0]!, status: 'done', recent: [said] }, subs[1]!], 3), clock.now);
+    let summary = false;
+    run(sim, clock, 40, () => (summary = s1.bubbleText === 'Achei 3 arquivos de rota.'));
+    expect(summary).toBe(true);
   });
 
   it('ocioso passeia e volta para a mesa', () => {
@@ -447,7 +472,7 @@ describe('salas sem buracos', () => {
     const clock = { now: T0 };
     sim.applySnapshot(snap([room('/c', 8), room('/a', 0), room('/b', 3)], [agent('ana', '/a', 'working'), agent('bia', '/b', 'working'), agent('caio', '/c', 'working')]), clock.now);
     expect(['/a', '/b', '/c'].map((id) => sim.rooms.get(id)!.slot)).toEqual([0, 1, 2]);
-    expect(sim.building.cols).toBe(CORE_COLS + 2);
+    expect(sim.building.cols).toBe(2 * FLOOR_COLS);
   });
 
   it('terminal fechou: a sala mais distante se muda para a vaga, o pessoal vai andando e o prédio encolhe', () => {
@@ -461,7 +486,7 @@ describe('salas sem buracos', () => {
     const caio = sim.chars.get('caio')!;
     const homeBefore = caio.homeSpot;
     expect(c.slot).toBe(2);
-    expect(sim.building.cols).toBe(CORE_COLS + 2);
+    expect(sim.building.cols).toBe(2 * FLOOR_COLS);
 
     // a sessão da sala /b fecha: bia vai embora e a sala é desmontada
     sim.applySnapshot(snap([room('/a', 0), room('/c', 2)], [agents[0], agent('bia', '/b', 'offline'), agents[2], agents[3]], 2), clock.now);
@@ -492,10 +517,9 @@ describe('salas sem buracos', () => {
     expect(inside(c, caio)).toBe(true);
     expect(c.phase).toBe('ready');
     expect(c.lightOn).toBe(true);
-    // o endereço antigo esvaziou, apagou e foi desmontado; o prédio voltou a ter uma coluna de salas
+    // o endereço antigo esvaziou, apagou e foi desmontado; o prédio segue com um andar de salas
     expect(sim.rooms.has(ghost!.id)).toBe(false);
-    run(sim, clock, 10, () => sim.building.cols === 3);
-    expect(sim.building.cols).toBe(CORE_COLS + 1);
+    expect(sim.building.cols).toBe(2 * FLOOR_COLS);
     // davi (ocioso, talvez passeando) também tem o lugar dele na sala nova
     expect(c.layout.spots.some((p) => p.id === sim.chars.get('davi')!.homeSpot)).toBe(true);
   });
@@ -515,8 +539,7 @@ describe('salas sem buracos', () => {
     });
     expect(moved).toBe(false);
     expect(sim.rooms.has('/c')).toBe(false);
-    run(sim, clock, 5, () => sim.building.cols === 3);
-    expect(sim.building.cols).toBe(CORE_COLS + 1);
+    expect(sim.building.cols).toBe(2 * FLOOR_COLS);
   });
 
   it('abre e fecha ao acaso (inclusive no meio de uma mudança): ninguém se teletransporta e no fim não sobra buraco', () => {
@@ -574,8 +597,10 @@ describe('salas sem buracos', () => {
     expect([...sim.rooms.keys()].sort()).toEqual([...open.keys()].sort());
     expect(slots).toEqual(slots.map((_, i) => i));
     expect([...sim.rooms.values()].some((r) => r.ghost)).toBe(false);
-    run(sim, clock, 20, () => sim.building.cols === 2 + Math.ceil(open.size / 2));
-    expect(sim.building.cols).toBe(CORE_COLS + Math.ceil(open.size / 2));
+    // um andar por 4 salas: o prédio encolhe até o andar mais alto ocupado
+    const cols = FLOOR_COLS * (1 + Math.max(1, Math.ceil(open.size / 4)));
+    run(sim, clock, 20, () => sim.building.cols === cols);
+    expect(sim.building.cols).toBe(cols);
     expect(maxStep).toBeLessThan(12);
   });
 

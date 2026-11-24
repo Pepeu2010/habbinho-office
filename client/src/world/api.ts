@@ -115,6 +115,10 @@ export interface WorldApi {
   getBuildingView?(): BuildingView;
   setBuildingView?(view: BuildingView): void;
   onBuildingView?(cb: (view: BuildingView) => void): () => void;
+  /** Andar do escritório mostrado no 3D (0 = térreo) e quantos existem. */
+  getFloor?(): { floor: number; count: number };
+  setFloor?(floor: number): void;
+  onFloor?(cb: (floor: number) => void): () => void;
   /** (Opcional, aditivo) Visitantes decorativos (NPCs) do mundo 3D: nunca são agentes nem entram em métricas. */
   getNpcLevel?(): NpcLevel;
   setNpcLevel?(l: NpcLevel): void;

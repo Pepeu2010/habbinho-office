@@ -1,6 +1,6 @@
 // Núcleo do prédio (colunas 0 a 2): recepção com elevadores, banheiros, copa, lounge, biblioteca e sala de reuniões.
 import type { WallStyle } from '../../art/api';
-import { COL_W, NORTH_Y, ROOM_H, SOUTH_Y, TILE } from '../constants';
+import { COL_W, FLOOR_COLS, NORTH_Y, ROOM_H, SOUTH_Y, TILE } from '../constants';
 import { AreaBuilder, SEATED_SORT_BIAS } from './builder';
 import type { AreaLayout } from './types';
 
@@ -26,8 +26,10 @@ export const CORE_WALLS = {
 /** Centros (em tiles locais) dos dois elevadores na face norte da recepção. */
 export const ELEVATOR_CX = [3, 6.5] as const;
 
-export function layoutReception(): AreaLayout {
-  const b = new AreaBuilder(RECEPTION_ID, 'reception', { x: 0, y: NORTH_Y, w: COL_W, h: ROOM_H });
+/** Andar `floor` > 0 = hall de elevadores do andar (mesma planta da recepção, na 1ª coluna do andar). */
+export function layoutReception(floor = 0): AreaLayout {
+  const at = floor ? `@${floor}` : '';
+  const b = new AreaBuilder(floor ? `hall${at}` : RECEPTION_ID, 'reception', { x: floor * FLOOR_COLS * COL_W, y: NORTH_Y, w: COL_W, h: ROOM_H });
   const wall = CORE_WALLS.reception;
   b.floor('marble', 0, 0, 16, 12, 101);
   b.rug(1.5, 2.2, 6.5, 2.6, '#3d5a80', 102);
@@ -40,7 +42,7 @@ export function layoutReception(): AreaLayout {
   ELEVATOR_CX.forEach((cx, i) => {
     b.wall('elevator', cx, undefined, { order: 0.2 + i * 0.1 });
     const lx = Math.floor(cx - 0.5);
-    b.spot('elevator', lx, 2, 'up', { x: b.px(cx), y: b.py(2) + 2, group: `elevator:${i}` });
+    b.spot('elevator', lx, 2, 'up', { x: b.px(cx), y: b.py(2) + 2, group: `elevator:${i}${at}` });
   });
   b.wall('sign', 11, undefined, { order: 0.9 });
   b.wall('clock', 8.15, undefined, { order: 0.7 });
@@ -67,8 +69,8 @@ export function layoutReception(): AreaLayout {
   // aberta para o corredor: divisórias de vidro nas pontas
   for (const lx of [1, 2, 3, 12, 13, 14]) b.furn('glass_partition', lx, 11, 'h', { order: 0.15 });
   b.walk(1, 2, 14, 10);
-  b.spot('talk', 6, 9, 'right', { group: 'talk:recepcao', dx: -1 });
-  b.spot('talk', 7, 9, 'left', { group: 'talk:recepcao', dx: 1 });
+  b.spot('talk', 6, 9, 'right', { group: `talk:recepcao${at}`, dx: -1 });
+  b.spot('talk', 7, 9, 'left', { group: `talk:recepcao${at}`, dx: 1 });
 
   const a = b.build();
   a.shade = undefined;
@@ -307,8 +309,10 @@ export function layoutLibrary(): AreaLayout {
  * Sala de reuniões (coluna 2, sul): mesa grande com cadeiras, quadro e TV na parede norte, porta para o corredor.
  * Quem está à toa pode sentar ali e conversar; reuniões de verdade (colaboração entre agentes) usam a mesma sala.
  */
-export function layoutMeeting(): AreaLayout {
-  const b = new AreaBuilder(MEETING_ID, 'lounge', { x: COL_W * 2, y: SOUTH_Y, w: COL_W, h: ROOM_H });
+export function layoutMeeting(floor = 0): AreaLayout {
+  const at = floor ? `@${floor}` : '';
+  const x0 = floor ? floor * FLOOR_COLS * COL_W : COL_W * 2;
+  const b = new AreaBuilder(floor ? `reunioes${at}` : MEETING_ID, 'lounge', { x: x0, y: SOUTH_Y, w: COL_W, h: ROOM_H });
   const wall = CORE_WALLS.meeting;
   b.floor('carpet', 0, 0, 16, 12, 601, '#6f7f8f', '#5d6b78');
   b.face(0.5, 6.5, wall);
@@ -318,7 +322,7 @@ export function layoutMeeting(): AreaLayout {
   b.cap(15.5, 0, 0.5, 12, wall);
   b.walk(1, 2, 14, 9);
   b.walk(7, 0, 3, 2);
-  b.area.door = { x: COL_W * 2 + 7, y: SOUTH_Y, w: 3, h: 2 };
+  b.area.door = { x: x0 + 7, y: SOUTH_Y, w: 3, h: 2 };
 
   b.wall('whiteboard', 3.5, undefined, { order: 0.4 });
   b.spot('whiteboard', 3, 3, 'up', { dx: 8 });
@@ -341,7 +345,7 @@ export function layoutMeeting(): AreaLayout {
   b.furn('water_cooler', 1, 9, undefined, { order: 0.3 });
   b.spot('water', 1, 10, 'up', { dy: -3 });
   b.furn('printer', 14, 2, undefined, { order: 0.3 });
-  b.spot('talk', 12, 9, 'right', { group: 'talk:reunioes', dx: -1 });
-  b.spot('talk', 13, 9, 'left', { group: 'talk:reunioes', dx: 1 });
+  b.spot('talk', 12, 9, 'right', { group: `talk:reunioes${at}`, dx: -1 });
+  b.spot('talk', 13, 9, 'left', { group: `talk:reunioes${at}`, dx: 1 });
   return b.build();
 }

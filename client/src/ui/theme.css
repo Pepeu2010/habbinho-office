@@ -276,6 +276,19 @@
   font-weight: 800;
 }
 
+.ui-building-nav__floors {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-line);
+}
+
+.ui-building-nav__floors[hidden] {
+  display: none;
+}
+
 .ui-building-nav__hint,
 .ui-building-gallery__note {
   color: var(--ui-muted);

@@ -8,9 +8,9 @@
 import * as THREE from 'three';
 import { FURNITURE, type FloorKind, type RoomTheme, type WallStyle } from '../art/api';
 import { tr } from '../../../shared/i18n';
-import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y, SOUTH_Y, TILE } from '../world/constants';
+import { BUILDING_H, COL_W, CORE_COLS, FLOOR_COLS, CORRIDOR_Y, SOUTH_Y, TILE } from '../world/constants';
 import { CAMPUS_GARDEN, layoutExterior, slotShell, type SlotShell } from '../world/layout/exterior';
-import { slotAt } from '../world/layout/geometry';
+import { floorOfX, isHallColumn, slotAt } from '../world/layout/geometry';
 import type { AreaLayout, ExteriorProp, FloorPatch, WallSegment } from '../world/layout/types';
 import type { Character } from '../world/sim/character';
 import type { BuildingView } from '../world/api';
@@ -75,12 +75,33 @@ interface AreaView {
   hooks: Map<string, FurnitureHooks>;
   zone?: FurnitureCtx['zone'];
   room: RoomState | null;
-  elevators: FurnitureHooks[];
+  elevators: (FurnitureHooks & { cx?: number })[];
   clocks: FurnitureHooks[];
   light: THREE.PointLight | null;
+  /** Andar da área (só um andar aparece por vez). */
+  floor: number;
 }
 
 const px = (v: number) => v / TILE;
+/** Largura de um andar, em tiles. */
+export const FLOOR_W = FLOOR_COLS * COL_W;
+
+/** Trecho de uma área que cruza andares (o corredor) dentro do andar `f`. */
+function sliceArea(a: AreaLayout, f: number): AreaLayout {
+  const x0 = f * FLOOR_W, x1 = x0 + FLOOR_W;
+  const clip = <T extends { x: number; w: number }>(list: T[]): T[] => list.flatMap((p) => {
+    const l = Math.max(p.x, x0 * TILE), r = Math.min(p.x + p.w, x1 * TILE);
+    return r > l ? [{ ...p, x: l, w: r - l }] : [];
+  });
+  const inside = (tx: number) => tx >= x0 && tx < x1;
+  return {
+    ...a, id: `${a.id}:${f}`, rect: { ...a.rect, x: x0, w: FLOOR_W },
+    floors: clip(a.floors), rugs: clip(a.rugs), walls: clip(a.walls),
+    wallItems: a.wallItems.filter((w) => inside(w.cx / TILE)),
+    furniture: a.furniture.filter((p) => inside(p.tx)),
+    spots: a.spots.filter((p) => inside(p.tx)),
+  };
+}
 
 /** Uma ação do E num objeto; `book` diz se o dono fica com o livro na mão depois dela. */
 export interface UseAction {
@@ -93,6 +114,7 @@ export class Building3D {
   readonly root = new THREE.Group();
   readonly architecture = new Architecture3D();
   private view: BuildingView = 'office';
+  private floor = 0;
   private areas = new Map<string, AreaView>();
   private exterior = new THREE.Group();
   private traffic?: Traffic;
@@ -124,7 +146,18 @@ export class Building3D {
   setView(view: BuildingView): void {
     this.view = view;
     this.architecture.setView(view);
-    for (const area of this.areas.values()) area.group.visible = view === 'office';
+    for (const area of this.areas.values()) area.group.visible = this.shows(area);
+  }
+
+  /** Mostra só o andar `f`: as outras áreas somem e a fachada vai para baixo dele. */
+  setFloor(f: number): void {
+    this.floor = f;
+    this.exterior.position.x = this.architecture.root.position.x = f * FLOOR_W;
+    for (const area of this.areas.values()) area.group.visible = this.shows(area);
+  }
+
+  private shows(area: AreaView): boolean {
+    return this.view === 'office' && area.floor === this.floor;
   }
 
   setNature(n: NatureKit): void {
@@ -230,14 +263,15 @@ export class Building3D {
   /** Recria o que mudou no layout (salas novas, mudadas, desmontadas; prédio mais largo). */
   sync(sim: Sim): void {
     const cols = sim.building.cols;
-    if (cols !== this.exteriorCols) {
-      this.exteriorCols = cols;
-      this.buildExterior(cols);
+    // a fachada tem a largura de um andar e acompanha o andar mostrado
+    if (this.exteriorCols !== FLOOR_COLS) {
+      this.exteriorCols = FLOOR_COLS;
+      this.buildExterior(FLOOR_COLS);
     }
     const wanted = new Map<string, { layout: AreaLayout; room: RoomState | null; key: string; shell?: SlotShell }>();
     for (const a of sim.building.core) wanted.set(a.id, { layout: a, room: null, key: 'core' });
     const corr = sim.building.corridor;
-    wanted.set(corr.id, { layout: corr, room: null, key: `corr:${cols}` });
+    for (let f = 0; f < cols / FLOOR_COLS; f++) wanted.set(`${corr.id}:${f}`, { layout: sliceArea(corr, f), room: null, key: `corr:${cols}` });
     const usedSlots = new Set<number>();
     for (const r of sim.rooms.values()) {
       if (!r.present) continue;
@@ -246,12 +280,14 @@ export class Building3D {
     }
     // vagas sem sala: fechamento do corredor e pátio (como no 2D)
     for (let col = CORE_COLS; col < cols; col++) {
+      if (isHallColumn(col)) continue;
+      const edge = col % FLOOR_COLS === FLOOR_COLS - 1; // fim do andar: fachada leste
       for (const side of ['north', 'south'] as const) {
         const slot = slotAt(col, side);
         const occupied = [...sim.rooms.values()].some((r) => r.present && r.layout.rect.x === col * COL_W && r.layout.rect.y === (side === 'north' ? 0 : SOUTH_Y));
         if (occupied) continue;
-        const sh = slotShell(slot, col === cols - 1);
-        wanted.set(`shell:${slot}`, { layout: { id: `shell:${slot}`, kind: 'room', rect: sh.rect, floors: sh.floors, rugs: [], walls: sh.walls, wallItems: sh.windows, furniture: [], spots: [], walkable: [] }, room: null, key: `shell:${slot}:${col === cols - 1}`, shell: sh });
+        const sh = slotShell(slot, edge);
+        wanted.set(`shell:${slot}`, { layout: { id: `shell:${slot}`, kind: 'room', rect: sh.rect, floors: sh.floors, rugs: [], walls: sh.walls, wallItems: sh.windows, furniture: [], spots: [], walkable: [] }, room: null, key: `shell:${slot}:${edge}`, shell: sh });
       }
     }
     for (const [id, v] of this.areas) {
@@ -268,7 +304,7 @@ export class Building3D {
         continue;
       }
       const view = this.buildArea(w.layout, w.room, w.key, w.shell);
-      view.group.visible = this.view === 'office';
+      view.group.visible = this.shows(view);
       this.areas.set(id, view);
       this.root.add(view.group);
     }
@@ -374,8 +410,8 @@ export class Building3D {
         c.clockHands[0].rotation.z = -hourA * Math.PI * 2;
         c.clockHands[1].rotation.z = -minA * Math.PI * 2;
       }
-      v.elevators.forEach((e, i) => {
-        const el = sim.elevators[i];
+      v.elevators.forEach((e) => {
+        const el = sim.elevators.find((x) => Math.abs((sim.spots.get(x.spotId)?.x ?? -99) - (e.cx ?? 0)) < 1);
         if (!e.doors) return;
         const open = el ? Math.min(1, el.door / 4) : 0;
         e.doors[0].position.x = -0.34 - open * 0.62;
@@ -430,7 +466,7 @@ export class Building3D {
     const g = new THREE.Group();
     g.name = a.id;
     const zone = room ? 'work' : a.id === 'core:reunioes' ? 'meeting' : a.id === 'core:copa' ? 'cafe' : undefined;
-    const view: AreaView = { id: a.id, group: g, key, walls: [], hooks: new Map(), zone, room, elevators: [], clocks: [], light: null };
+    const view: AreaView = { id: a.id, group: g, key, walls: [], hooks: new Map(), zone, room, elevators: [], clocks: [], light: null, floor: floorOfX(a.rect.x) };
     const theme: RoomTheme | undefined = room?.theme;
     const isCorridor = a.kind === 'corridor';
     const top = a.rect.y;
@@ -502,7 +538,7 @@ export class Building3D {
       obj.position.set(px(it.cx), 0, onSouth ? px(it.baseY) - 1 + 0.5 - WALL_T / 2 : px(it.baseY));
       if (onSouth) obj.rotation.y = Math.PI;
       g.add(obj);
-      if (hooks.doors) view.elevators.push(hooks);
+      if (hooks.doors) view.elevators.push({ ...hooks, cx: it.cx });
       if (hooks.clockHands) view.clocks.push(hooks);
       if (hooks.use) view.hooks.set(it.id, hooks);
     }

@@ -12,6 +12,14 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Andares de verdade com elevador.** O escritório fica mais compacto: cada andar tem três colunas de salas, separadas
+  por vidro no 2D, e todo mundo troca de andar pelo elevador. No 3D, o menu do prédio ganhou botões de andar
+  (Térreo, Andar 1...), só o andar escolhido aparece e a câmera segue o agente acompanhado quando ele muda de andar.
+- **Salas com 12 mesas.** Cada sala de projeto tem duas ilhas de seis mesas, então cabem mais agentes sentados.
+- **Comunicação entre agentes.** Quando um agente dispara dois ou mais subagentes de uma vez, ele vai ao quadro branco
+  e a equipe se reúne ali antes de ir para as mesas. Ao terminar, o subagente leva o resultado à mesa do pai e mostra
+  num balão o resumo do que escreveu, e o pai responde. Com um agente selecionado, uma linha tracejada liga ele aos
+  subagentes ativos, no 2D e no 3D.
 - **Carros e estacionamento no campus 3D.** Carros rodam nas duas faixas da rua, com faróis e lanternas acesos à
   noite, e um estacionamento a noroeste do prédio tem vagas pintadas e carros parados.
 - **Novo nome: Habbinho Office.** O nome visível mudou em todos os idiomas, e a placa da recepção no 2D agora diz
@@ -29,7 +37,7 @@ do meio (0.**3**.0).
 - **Dono do escritório.** Editor com prévia 3D e controles de nome, cabelo, pele, roupa e acessórios para o personagem
   que você usa no modo Passear. O visual fica salvo neste navegador.
 - **Campus 3D.** Terreno em forma de maquete com praça, bancos, paraciclos e lago. A visão geral agrupa os nomes por
-  sala e limita o zoom. O dono pode caminhar até a praça e os funcionários podem passear no jardim lateral.
+  sala e limita o zoom. O dono pode caminhar até a praça.
 - **Pausas no 3D.** Pingue-pongue com raquetes, bola e placar, leitura e alongamento com animação própria, fliperama
   com tela animada, vapor na cafeteira e luminárias que acendem ao escurecer.
 - **Móveis interativos.** A estante de fichários agora tem nichos abertos. No modo Passear, pressione E perto de um

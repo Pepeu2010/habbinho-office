@@ -11,6 +11,8 @@ export const ROOM_H = 12;
 export const CORRIDOR_H = 5;
 /** Colunas do núcleo (recepção/banheiros, copa/lounge e biblioteca/reuniões). */
 export const CORE_COLS = 3;
+/** Cada andar ocupa uma faixa de colunas (térreo = núcleo; acima: hall + 2 colunas de salas). */
+export const FLOOR_COLS = 3;
 
 export const NORTH_Y = 0;
 export const CORRIDOR_Y = ROOM_H;

@@ -1,11 +1,10 @@
 // Montagem do prédio: núcleo + corredor + salas de projeto -> grade de caminhabilidade e spots.
 import { FURNITURE } from '../../art/api';
-import { BUILDING_H, COL_W } from '../constants';
+import { BUILDING_H, COL_W, FLOOR_COLS } from '../constants';
 import { BLOCKED, FREE, SEAT, WalkGrid } from '../path/grid';
 import { furnitureBlocks, furnitureIsSeat } from './builder';
 import { layoutCafe, layoutLibrary, layoutLounge, layoutMeeting, layoutReception, layoutRestroom } from './core';
 import { layoutCorridor } from './corridor';
-import { campusGarden } from './exterior';
 import { buildingRect } from './geometry';
 import type { AreaLayout, SpotDef, TileRect } from './types';
 
@@ -20,6 +19,14 @@ export interface BuildingLayout {
 }
 
 let coreCache: AreaLayout[] | null = null;
+const floorCache = new Map<number, AreaLayout[]>();
+
+/** Hall de elevadores + sala de reuniões de um andar acima do térreo. */
+export function floorAreas(f: number): AreaLayout[] {
+  let a = floorCache.get(f);
+  if (!a) floorCache.set(f, (a = [layoutReception(f), layoutMeeting(f)]));
+  return a;
+}
 
 /** Áreas fixas do núcleo (calculadas uma vez). */
 export function coreAreas(): AreaLayout[] {
@@ -49,7 +56,9 @@ export function buildWalkGrid(cols: number, areas: readonly AreaLayout[], versio
 }
 
 export function assembleBuilding(cols: number, rooms: readonly AreaLayout[], version = 0, campus = false): BuildingLayout {
-  const core = campus ? [...coreAreas(), campusGarden(cols)] : coreAreas();
+  const halls: AreaLayout[] = [];
+  for (let f = 1; f < cols / FLOOR_COLS; f++) halls.push(...floorAreas(f));
+  const core = [...coreAreas(), ...halls];
   const corridor = layoutCorridor(cols, campus);
   const all = [...core, corridor, ...rooms];
   const grid = buildWalkGrid(cols, all, version);

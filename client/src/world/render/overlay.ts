@@ -309,6 +309,24 @@ export class Overlay {
       }
     }
 
+    // ---- linha de delegação: do agente selecionado até cada subagente ativo dele
+    const boss = sel.agent ? this.sim.chars.get(sel.agent) : undefined;
+    if (boss && !boss.gone) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(120,200,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.lineDashOffset = -now / 60;
+      for (const c of this.sim.chars.values()) {
+        if (c.info.parentId !== boss.id || c.gone || c.leaving || c.alpha <= 0) continue;
+        ctx.beginPath();
+        ctx.moveTo(this.sx(boss.x), this.sy(boss.y - 12));
+        ctx.lineTo(this.sx(c.x), this.sy(c.y - 12));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     // placas e pílulas primeiro: são fixas e grandes; balões e etiquetas desviam delas
     this.drawRoomTexts(now, zoom);
     this.drawFxBanners(now, zoom);

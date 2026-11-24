@@ -5,9 +5,9 @@ import { TILE, type ArtModule, type CharacterFrameRequest, type IconName, type S
 import type { SeasonalTheme, WorldOptions } from '../api';
 import type { WorldAssets } from '../assets';
 import type { Camera } from '../camera';
-import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y } from '../constants';
+import { BUILDING_H, COL_W, CORE_COLS, FLOOR_COLS, CORRIDOR_Y } from '../constants';
 import { layoutExterior, slotShell, type ExteriorLayout, type SlotShell } from '../layout/exterior';
-import { slotAt } from '../layout/geometry';
+import { isHallColumn, slotAt } from '../layout/geometry';
 import type { ExteriorProp } from '../layout/types';
 import { screenModeFor } from '../sim/behavior';
 import type { Character } from '../sim/character';
@@ -102,7 +102,6 @@ export class Renderer {
   /** dt do frame atual (s), para as partículas emitidas durante o desenho. */
   private dt = 0;
   private iconCount = 0;
-  private elevatorVis: WallVis[] = [];
   private occupiedSlots = new Set<number>();
   /** Hora forçada (?hora=21:30 na URL ou depuração) ou null para a hora local. */
   hourOverride: number | null = parseHourParam(typeof location === 'undefined' ? '' : location.search);
@@ -154,8 +153,6 @@ export class Renderer {
         if (!room.present) continue;
         want.add(room.id);
       }
-      for (const id of [...this.areas.keys()]) if (!want.has(id)) this.areas.delete(id);
-      this.elevatorVis = this.areas.get('core:recepcao')?.wallItems.filter((w) => w.kind === 'elevator') ?? [];
     }
     // salas: (re)constrói quando surgem, mudam de layout ou de versão (nome/tema)
     this.occupiedSlots.clear();
@@ -193,8 +190,10 @@ export class Renderer {
     this.shells = [];
     this.shellWindows = [];
     for (let col = CORE_COLS; col < cols; col++) {
+      if (isHallColumn(col)) continue;
+      const edge = col % FLOOR_COLS === FLOOR_COLS - 1; // fim do andar: fachada leste
       for (const side of ['north', 'south'] as const) {
-        const sh = slotShell(slotAt(col, side), col === cols - 1);
+        const sh = slotShell(slotAt(col, side), edge);
         this.shells.push(sh);
         paintShell(this.art, ctx, sh.floors, sh.walls);
         for (const w of sh.windows) this.shellWindows.push(toWallVis(w, `shell:${sh.slot}`));
@@ -589,8 +588,8 @@ export class Renderer {
         this.drawWindow(w, hour, now, 1, rise);
         return;
       case 'elevator': {
-        const idx = this.elevatorVis.indexOf(w);
-        const state = this.sim.elevators[idx]?.state ?? 0;
+        // cada andar tem seus elevadores: casa pela posição do spot (o centro da porta)
+        const state = this.sim.elevators.find((e) => Math.abs((this.sim.spots.get(e.spotId)?.x ?? -99) - w.cx) < 1)?.state ?? 0;
         const s = wallSprites(this.art, 'elevator', w.variant, state, w.seed);
         if (!s) return;
         const o = wallItemOrigin(w, s.base);

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { HeldItem } from '../art/api';
 import { TILE } from '../world/constants';
+import { floorOfX } from '../world/layout/geometry';
 import type { Character } from '../world/sim/character';
 import type { Sim } from '../world/sim/sim';
 import type { SpotKind } from '../world/layout/types';
@@ -39,6 +40,8 @@ const FADE = 0.22;
 const WALK_REF = 1.55;
 const RUN_REF = 3.6;
 const FOOT_SHIFT = 3 / TILE;
+/** Andar mostrado no 3D: quem está em outro andar fica escondido. */
+export const shown = { floor: 0 };
 
 export interface AvatarView {
   id: string;
@@ -277,7 +280,7 @@ class Avatar implements AvatarView {
     this.root.position.set(this.pos.x, this.root.position.y + (seatY - this.root.position.y) * (1 - Math.exp(-dt * 14)), this.pos.z);
     if (this.body) this.body.rotation.y = this.yaw;
 
-    this.visible = ch.visible && !ch.inside && !ch.gone && now >= ch.hiddenUntil && !!this.body;
+    this.visible = ch.visible && !ch.inside && !ch.gone && now >= ch.hiddenUntil && !!this.body && floorOfX(ch.tx) === shown.floor;
     this.root.visible = this.visible;
     this.shadowBlob.visible = !ch.seated;
     if (!this.body || !this.mixer || !this.model) return;
@@ -551,6 +554,11 @@ export function hash01(s: string): number {
 /** Todos os avatares: cria, atualiza e remove conforme os personagens da simulação. */
 export class Avatars {
   readonly group = new THREE.Group();
+  /** Linha de delegação: do agente selecionado até cada subagente ativo dele. */
+  private readonly links = new THREE.LineSegments(
+    new THREE.BufferGeometry(),
+    new THREE.LineDashedMaterial({ color: '#78c8ff', dashSize: 0.35, gapSize: 0.25, transparent: true, opacity: 0.9, depthTest: false }),
+  );
   readonly list = new Map<string, Avatar>();
 
   constructor(
@@ -583,6 +591,23 @@ export class Avatars {
       else if (ch.id === hovered) a.setRing('#ffffff', 0.5);
       else a.setRing(status, 0.85);
     }
+    const boss = selected ? this.list.get(selected) : undefined;
+    const pts: number[] = [];
+    if (boss?.root.visible) {
+      for (const ch of chars.values()) {
+        const a = ch.info.parentId === selected && !ch.leaving ? this.list.get(ch.id) : undefined;
+        if (!a?.root.visible) continue;
+        const p = boss.root.position;
+        const q = a.root.position;
+        pts.push(p.x, p.y + 1.1, p.z, q.x, q.y + 1.1, q.z);
+      }
+    }
+    if (pts.length) {
+      this.links.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      this.links.computeLineDistances();
+      this.links.renderOrder = 5;
+      if (!this.links.parent) this.group.add(this.links);
+    } else if (this.links.parent) this.group.remove(this.links);
   }
 
   get(id: string): AvatarView | undefined {
@@ -590,6 +615,8 @@ export class Avatars {
   }
 
   dispose(): void {
+    this.links.geometry.dispose();
+    (this.links.material as THREE.Material).dispose();
     for (const a of this.list.values()) a.dispose();
     this.list.clear();
     this.group.clear();

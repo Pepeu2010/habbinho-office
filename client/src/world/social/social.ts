@@ -54,7 +54,7 @@ export type { SocialEvent } from '../api';
 /** Quem espera um shell só sai da mesa depois disto (antes, pipoca na mesa). */
 export const SHELL_SOCIAL_MIN_MS = 40_000;
 /** Quem não chega ao lugar da roda em tanto tempo desiste (a roda acontece sem ele ou não acontece). */
-const GATHER_TIMEOUT_MS = 35_000;
+const GATHER_TIMEOUT_MS = 60_000; // inclui a viagem de elevador entre andares
 const SAY_MS = 2_600;
 const FLOATER_MS = 1_900;
 const MAX_FLOATERS = 24;

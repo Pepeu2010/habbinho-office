@@ -7,7 +7,7 @@ import type { WorldOptions } from '../api';
 import { COL_W, COMPACT_DELAY_MS, DISMANTLE_DELAY_MS, FOOT_DX, FOOT_DY, MISSING_DEBOUNCE_MS, RUN_SPEED, TILE, WALK_SPEED } from '../constants';
 import { assembleBuilding, type BuildingLayout } from '../layout/building';
 import { RECEPTION_ID } from '../layout/core';
-import { columnsFor, inRect } from '../layout/geometry';
+import { columnsFor, floorOfX, inRect } from '../layout/geometry';
 import { layoutProjectRoom } from '../layout/room';
 import type { SpotDef, SpotKind } from '../layout/types';
 import { PathFinder } from '../path/astar';
@@ -90,6 +90,8 @@ const INITIAL_LOUNGE_MIN_IDLE_MS = 90_000;
 /** Ninguém sai para passear nos primeiros segundos depois de abrir a página. */
 const INITIAL_OUTING_DELAY_MS = 5_000;
 const ENTER_MS = 180;
+/** Tempo dentro do elevador entre andares (antes de a porta do outro andar abrir). */
+const RIDE_MS = 1_400;
 
 function between(rng: () => number, a: number, b: number): number {
   return a + rng() * (b - a);
@@ -102,6 +104,7 @@ export class Sim {
   readonly chars = new Map<string, Character>();
   readonly rooms = new Map<string, RoomState>();
   readonly spots = new SpotRegistry();
+  private readonly newKids = new Map<string, number>();
   readonly elevators: Elevator[] = [];
   building: BuildingLayout;
   readonly finder: PathFinder;
@@ -155,7 +158,21 @@ export class Sim {
     this.building = assembleBuilding(columnsFor([]), [], 0, mode.campus);
     this.finder = new PathFinder(this.building.grid);
     this.spots.setSpots(this.building.spots);
-    for (const s of this.spots.ofKind('elevator')) this.elevators.push(new Elevator(this.elevators.length, s.id));
+    this.syncElevators();
+  }
+
+  /** Um Elevator por spot de elevador (térreo + hall de cada andar). Só acrescenta: os passos guardam o índice. */
+  private syncElevators(): void {
+    for (const s of this.spots.ofKind('elevator')) if (!this.elevators.some((e) => e.spotId === s.id)) this.elevators.push(new Elevator(this.elevators.length, s.id));
+  }
+
+  /** Andar (0 = térreo) de um personagem: pela sala, se ainda não está no prédio; senão pela posição. */
+  private floorOf(ch: Character): number {
+    if (ch.inside && ch.arriving) {
+      const room = this.rooms.get(ch.roomId);
+      if (room) return floorOfX(room.layout.rect.x);
+    }
+    return floorOfX(ch.tx);
   }
 
   // =================================================================== snapshot
@@ -205,6 +222,9 @@ export class Sim {
     // ---- agentes
     const seen = new Set<string>();
     const fresh: Character[] = [];
+    // subagentes que chegam neste pacote, por pai (o pai decide a reunião antes de eles existirem)
+    this.newKids.clear();
+    for (const a of snap.agents) if (a.parentId && a.status !== 'done' && !this.chars.has(a.id)) this.newKids.set(a.parentId, (this.newKids.get(a.parentId) ?? 0) + 1);
     for (const a of snap.agents) {
       seen.add(a.id);
       const ch = this.chars.get(a.id);
@@ -429,8 +449,9 @@ export class Sim {
     ch.shellDoneAt = latestShellDone(a)?.at ?? 0;
     this.chars.set(a.id, ch);
     if (first) return ch;
-    // chegada pelo elevador
-    const el = this.pickElevator(ch);
+    // chegada pelo elevador do andar da sala
+    const home = this.rooms.get(ch.roomId);
+    const el = this.pickElevator(ch, home ? floorOfX(home.layout.rect.x) : 0);
     const spot = this.spots.get(el.spotId)!;
     ch.placeAtTile(spot.tx, spot.ty);
     ch.x = spot.x;
@@ -509,9 +530,14 @@ export class Sim {
     if (seat && this.spots.reserve(seat.id, ch.id)) ch.homeSpot = seat.id;
   }
 
-  private pickElevator(ch: Character): Elevator {
-    let best = this.elevators[0];
-    for (const e of this.elevators) if (e.load < best.load || (e.load === best.load && ch.rng() < 0.5)) best = e;
+  private pickElevator(ch: Character, floor = this.floorOf(ch)): Elevator {
+    const here = this.elevators.filter((e) => {
+      const sp = this.spots.get(e.spotId);
+      return sp && floorOfX(sp.tx) === floor;
+    });
+    const list = here.length ? here : this.elevators.slice(0, 2);
+    let best = list[0]!;
+    for (const e of list) if (e.load < best.load || (e.load === best.load && ch.rng() < 0.5)) best = e;
     return best;
   }
 
@@ -540,6 +566,7 @@ export class Sim {
     this.layoutVersion++;
     this.finder.setGrid(building.grid);
     const lost = this.spots.setSpots(building.spots);
+    this.syncElevators();
     for (const { owner } of lost) {
       const ch = this.chars.get(owner);
       if (!ch) continue;
@@ -912,6 +939,7 @@ export class Sim {
   }
 
   private stepGo(ch: Character, s: Extract<Step, { t: 'go' }>, dt: number): boolean {
+    if (!s.path && floorOfX(ch.tx) !== floorOfX(s.tx) && this.rideTo(ch, s)) return false;
     if (!s.path) {
       s.path = [];
       s.i = 0;
@@ -962,6 +990,34 @@ export class Sim {
     }
     if (moved) ch.setPose(s.run ? 'run' : 'walk', s.held ?? 'none');
     return false;
+  }
+
+  /**
+   * Destino em outro andar: o passo vira "ir ao elevador daqui", e na fila entram subir/descer e o passo original.
+   * Os andares não se ligam pelo grid, então sem isto o caminho falharia e o personagem teletransportaria.
+   */
+  private rideTo(ch: Character, s: Extract<Step, { t: 'go' }>): boolean {
+    const from = this.pickElevator(ch, floorOfX(ch.tx));
+    const to = this.pickElevator(ch, floorOfX(s.tx));
+    const a = this.spots.get(from.spotId);
+    const b = this.spots.get(to.spotId);
+    if (!a || !b || floorOfX(a.tx) === floorOfX(b.tx)) return false;
+    ch.queue.unshift(
+      { t: 'elevIn', elev: from.index, phase: 0 },
+      {
+        t: 'do',
+        fn: () => {
+          ch.placeAtTile(b.tx, b.ty);
+          ch.x = b.x;
+          ch.y = b.y - 6;
+          ch.hiddenUntil = to.reserveAppear(this.now) + RIDE_MS;
+        },
+      },
+      { t: 'elevOut', elev: to.index, phase: 0 },
+      { ...s, path: undefined, i: undefined, fine: undefined },
+    );
+    Object.assign(s, { tx: a.tx, ty: a.ty, fx: undefined, fy: undefined, fine: undefined, dir: 'up' });
+    return true;
   }
 
   private stepElevOut(ch: Character, s: Extract<Step, { t: 'elevOut' }>, dt: number, now: number): boolean {
@@ -1235,9 +1291,39 @@ export class Sim {
     const dist = Math.abs(home.tx - ch.tx) + Math.abs(home.ty - ch.ty);
     // quem acabou de chegar anda (a não ser que precise do usuário); depois corre se estiver longe
     const run = shouldRun(dist, ch.mode) && (!ch.arriving || ch.mode === 'wait');
+    if (ch.arriving && this.planBriefing(ch, steps)) return true;
     steps.push({ t: 'go', tx: home.tx, ty: home.ty, run, held }, { t: 'enter', spot: home.id });
     if (ch.mode === 'idle') steps.push({ t: 'do', fn: () => (ch.nextOutingAt = this.now + idleSitMs(ch.rng, this.options().liveliness)) });
     void now;
+    ch.queue.push(...steps);
+    return true;
+  }
+
+  /** Subagente recém-chegado cujo pai está reunindo a equipe: senta numa banqueta da reunião e ouve antes de ir à mesa. */
+  private planBriefing(ch: Character, steps: Step[]): boolean {
+    const parent = ch.info.parentId ? this.chars.get(ch.info.parentId) : undefined;
+    if (ch.briefed || !parent || parent.briefingUntil <= this.now || ch.mode === 'wait') return false;
+    const room = this.rooms.get(ch.roomId);
+    // banqueta livre da mesa de reunião; sem ela (salas de 12 mesas), em pé ao lado do pai no quadro
+    const stool = room?.layout.spots.find((s) => s.kind === 'stool' && this.spots.isFree(s.id));
+    ch.briefed = true;
+    if (stool && this.reserveTemp(ch, stool)) {
+      steps.push(
+        { t: 'go', tx: stool.tx, ty: stool.ty },
+        { t: 'enter', spot: stool.id },
+        { t: 'act', pose: 'sit', held: 'none', ms: 5500 },
+        { t: 'exit' },
+        { t: 'do', fn: () => this.releaseTemp(ch) },
+      );
+    } else {
+      const board = room?.layout.spots.find((s) => s.kind === 'whiteboard');
+      const t = this.besideTile(board ? { id: parent.id, tx: board.tx, ty: board.ty } : parent, ch);
+      steps.push(
+        { t: 'go', tx: t.x, ty: t.y },
+        { t: 'do', fn: () => (ch.dir = facing(ch.x, ch.y, parent.x, parent.y)) },
+        { t: 'act', pose: 'stand', held: 'none', ms: 5500 },
+      );
+    }
     ch.queue.push(...steps);
     return true;
   }
@@ -1342,6 +1428,30 @@ export class Sim {
     const door = room?.layout.door;
     const dir: Dir = door ? facing(ch.x, ch.y, (door.x + door.w / 2) * TILE, (door.y + door.h / 2) * TILE) : 'down';
     const home = ch.homeSpot;
+    // 2+ subagentes chegando: reunião de verdade no quadro branco da sala (os filhos sentam nas banquetas)
+    const kids = [...this.chars.values()].filter((c) => c.info.parentId === ch.id && c.arriving).length + (this.newKids.get(ch.id) ?? 0);
+    const board = kids >= 2 ? room?.layout.spots.find((s) => s.kind === 'whiteboard') : undefined;
+    if (board) {
+      ch.briefingUntil = now + 20_000;
+      ch.queue.push(
+        { t: 'exit' },
+        { t: 'go', tx: board.tx, ty: board.ty, fx: board.x, fy: board.y, dir: board.dir },
+        {
+          t: 'until',
+          cond: () => ![...this.chars.values()].some((c) => c.info.parentId === ch.id && c.arriving),
+          minMs: 4000,
+          maxMs: 20_000,
+          pose: 'talk',
+          held: 'none',
+          dir: board.dir,
+        },
+        { t: 'do', fn: () => (ch.briefingUntil = 0) },
+        { t: 'go', tx: ch.tx, ty: ch.ty },
+        { t: 'enter', spot: home },
+      );
+      ch.setIcon('chat', 4000, now);
+      return;
+    }
     ch.queue.push(
       { t: 'exit' },
       {
@@ -1416,6 +1526,19 @@ export class Sim {
         },
       },
       { t: 'act', pose: 'talk', held, ms: 2700 },
+    );
+    // o resumo de verdade: o último texto que o subagente escreveu (já mascarado e cortado pelo servidor)
+    const said = [...ch.info.recent].reverse().find((a) => a.kind === 'respond' && a.detail)?.detail?.replace(/\s+/g, ' ').trim();
+    if (said) {
+      const summary = said.length > 84 ? `${said.slice(0, 83).trimEnd()}…` : said;
+      steps.push(
+        { t: 'do', fn: () => ch.showBubble('💬', summary, 4200, this.now) },
+        { t: 'act', pose: 'talk', held, ms: 3600 },
+        { t: 'do', fn: () => parent.showBubble('👍', tr('Recebido, valeu!'), 2200, this.now) },
+        { t: 'act', pose: 'stand', held, ms: 900 },
+      );
+    }
+    steps.push(
       {
         t: 'do',
         fn: () => {
@@ -1430,7 +1553,7 @@ export class Sim {
   }
 
   /** Tile caminhável ao lado de alguém (evitando assentos e tiles ocupados), o mais próximo de quem vem. */
-  private besideTile(target: Character, from: Character): { x: number; y: number } {
+  private besideTile(target: Pick<Character, 'id' | 'tx' | 'ty'>, from: Character): { x: number; y: number } {
     const grid = this.building.grid;
     const busy = this.busyTiles(from.id, target.id);
     let best: { x: number; y: number } | null = null;

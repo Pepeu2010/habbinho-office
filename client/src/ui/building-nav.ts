@@ -50,18 +50,35 @@ export class BuildingNavigator {
       for (const row of rows) setAttr(row.button, 'aria-pressed', String(row.view === active));
       setAttr(this.button, 'aria-pressed', String(active !== 'office'));
     };
-    world.onBuildingView?.(sync);
+    // andares do escritório: um botão por andar (só aparece com mais de um)
+    const floors = h('div', { class: 'ui-building-nav__floors', role: 'group', attrs: { 'aria-label': tr('Andares') } });
+    const syncFloors = () => {
+      const info = world.getFloor?.();
+      floors.hidden = !info || info.count < 2;
+      if (!info || floors.hidden) return;
+      floors.replaceChildren(...Array.from({ length: info.count }, (_, f) => {
+        const b = h('button', {
+          type: 'button', class: 'ui-building-nav__option', text: f ? tr('Andar {0}', [f]) : tr('Térreo'),
+          on: { click: () => { panel.hidePopover(); world.setBuildingView?.('office'); world.setFloor?.(f); } },
+        });
+        setAttr(b, 'aria-pressed', String(f === info.floor && world.getBuildingView?.() === 'office'));
+        return b;
+      }));
+    };
+    world.onBuildingView?.((v) => { sync(v); syncFloors(); });
+    world.onFloor?.(syncFloors);
     sync(world.getBuildingView?.() ?? 'office');
     panel.addEventListener('toggle', () => {
       setAttr(this.button, 'aria-expanded', String(panel.matches(':popover-open')));
     });
-    panel.append(...rows.map(({ button }) => button));
+    panel.append(...rows.map(({ button }) => button), floors);
     root.append(panel);
     return () => {
       if (panel.matches(':popover-open')) {
         panel.hidePopover();
         return;
       }
+      syncFloors();
       const rect = this.button.getBoundingClientRect();
       panel.style.top = `${rect.bottom + 8}px`;
       panel.style.right = `${Math.max(8, Math.min(innerWidth - rect.right, innerWidth - 254))}px`;

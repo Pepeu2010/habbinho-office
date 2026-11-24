@@ -8,15 +8,16 @@ import type { ArtModule } from '../art/api';
 import type { OfficeStore } from '../net/store';
 import { DEFAULT_WORLD_OPTIONS, type BuildingView, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from '../world/api';
 import type { Camera } from '../world/camera';
-import { BUILDING_H, COL_W, TILE } from '../world/constants';
+import { BUILDING_H, FLOOR_COLS, TILE } from '../world/constants';
+import { floorOfX } from '../world/layout/geometry';
 import { rebaseSnapshot } from '../world/playback';
 import { Sim } from '../world/sim/sim';
 import { VISITOR_ID } from '../world/sim/visitor';
 import { SoundCues } from '../world/sound-cues';
 import { CharacterAssets, NatureKit } from './assets';
-import { Building3D, type UseAction } from './building';
+import { Building3D, FLOOR_W, type UseAction } from './building';
 import { DIST_MAX, DIST_MIN, StrategicCamera } from './camera';
-import { Avatars } from './characters';
+import { Avatars, shown } from './characters';
 import { Fx } from './fx';
 import { NpcCrowd, type NpcLevel } from './npcs';
 import { Labels } from './labels';
@@ -154,6 +155,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
   const soundCbs = new Set<(c: SoundCue) => void>();
   const roomMenuCbs = new Set<(roomId: string, at: { x: number; y: number }) => void>();
   const buildingCbs = new Set<(view: BuildingView) => void>();
+  const floorCbs = new Set<(floor: number) => void>();
   const requestedView = new URLSearchParams(location.search).get('building');
   let buildingView: BuildingView = requestedView === 'exterior' || requestedView === 'mezzanine' || requestedView === 'roof' ? requestedView : 'office';
   building.setView(buildingView);
@@ -183,20 +185,35 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     stage.resize(viewW, viewH);
   };
 
-  const buildingSize = () => ({ w: sim.building.cols * COL_W, d: BUILDING_H });
+  // só um andar aparece por vez, nas coordenadas de sempre: a fachada e a câmera vão até ele
+  let floor = 0;
+  const buildingSize = () => ({ x0: floor * FLOOR_W, w: FLOOR_W, d: BUILDING_H });
 
   const updateBounds = () => {
-    const { w, d } = buildingSize();
-    cam.bounds.set(new THREE.Vector3(-14, 0, -10), new THREE.Vector3(w + 14, 0, d + 16));
-    stage.setBounds(new THREE.Box3(new THREE.Vector3(-4, 0, -4), new THREE.Vector3(w + 4, 15.25, d + 6)));
+    const { x0, w, d } = buildingSize();
+    cam.bounds.set(new THREE.Vector3(x0 - 14, 0, -10), new THREE.Vector3(x0 + w + 14, 0, d + 16));
+    stage.setBounds(new THREE.Box3(new THREE.Vector3(x0 - 4, 0, -4), new THREE.Vector3(x0 + w + 4, 15.25, d + 6)));
+  };
+
+  const setFloor = (f: number) => {
+    f = Math.max(0, Math.min(sim.building.cols / FLOOR_COLS - 1, f));
+    if (f === floor) return;
+    const dx = (f - floor) * FLOOR_W;
+    floor = shown.floor = f;
+    building.setFloor(f);
+    updateBounds();
+    cam.stop();
+    cam.state.target.x += dx;
+    floorCbs.forEach((cb) => cb(f));
   };
 
   const overview = (animate = true) => {
     follow = null;
-    const { w, d } = buildingSize();
+    const { x0, w, d } = buildingSize();
     const frame = buildingView === 'office'
-      ? { target: new THREE.Vector3(w / 2, 0, d / 2 + 0.5), yaw: -0.27, pitch: 1.04, w, d }
+      ? { target: new THREE.Vector3(x0 + w / 2, 0, d / 2 + 0.5), yaw: -0.27, pitch: 1.04, w, d }
       : building.architecture.framing(buildingView);
+    if (buildingView !== 'office') frame.target.x += x0;
     const s = Math.abs(Math.sin(frame.yaw)), c = Math.abs(Math.cos(frame.yaw));
     const goal = {
       ...frame,
@@ -258,6 +275,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     const ch = sim.person(id);
     if (!ch) return;
     setBuildingView('office', false);
+    setFloor(floorOfX(ch.tx));
     userMoved = true;
     const target = av?.visible ? focusPoint(av) : new THREE.Vector3(ch.x / TILE, 0.5, ch.y / TILE);
     const facing = ch.dir === 'up' ? Math.PI : ch.dir === 'left' ? -Math.PI / 2 : ch.dir === 'right' ? Math.PI / 2 : 0;
@@ -275,6 +293,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     userMoved = true;
     follow = null;
     const r = room.layout.rect;
+    setFloor(floorOfX(r.x));
     const target = new THREE.Vector3(r.x + r.w / 2, 0, r.y + r.h / 2 + 1);
     const pitch = 0.92;
     const dist = cam.fitDistance(r.w + 1, r.h, viewW, viewH, pitch);
@@ -567,6 +586,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       building.sync(sim);
       if (sim.building.cols !== lastCols) {
         lastCols = sim.building.cols;
+        setFloor(floor);
         updateBounds();
         if (!framed && sim.initialized) {
           overview(false);
@@ -575,6 +595,9 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
       }
       applyKeys(realDt);
       const sel = selection?.type === 'agent' ? selection.id : null;
+      // o andar mostrado acompanha quem a câmera segue (inclusive no elevador)
+      const guide = walk.active ? walk.list.get('me:walker') : follow ? sim.person(follow) : undefined;
+      if (guide) setFloor(floorOfX(guide.tx));
       avatars.update(sim, dt, now, sel, hover);
       // no timelapse não há visitantes: ele mostra só o que aconteceu de verdade
       if (sim.initialized) npcs.update(dt, now, playback ? 'none' : npcLevel);
@@ -790,6 +813,15 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
     onBuildingView: (cb) => {
       buildingCbs.add(cb);
       return () => void buildingCbs.delete(cb);
+    },
+    getFloor: () => ({ floor, count: sim.building.cols / FLOOR_COLS }),
+    setFloor: (f) => {
+      follow = null;
+      setFloor(f);
+    },
+    onFloor: (cb) => {
+      floorCbs.add(cb);
+      return () => void floorCbs.delete(cb);
     },
     setWalkMode: (m) => setWalk(m),
     onWalkChange: (cb) => {

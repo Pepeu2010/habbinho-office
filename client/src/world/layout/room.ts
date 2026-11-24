@@ -143,40 +143,17 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   const deskV = theme.deskVariant;
   const chairV = theme.chairVariant;
   const ranks = [2, 0, 4];
-  for (let i = 0; i < 3; i++) {
-    const lx = 2 + i * 2;
-    const back = furn('desk_back', lx, 5, deskV, { order: 0.35 + i * 0.05, seat: `N${i}` });
-    const front = furn('desk', lx, 6, deskV, { order: 0.4 + i * 0.05, seat: `S${i}` });
-    seat('desk', 'office_chair_front', lx, 4, 'down', chairV, { dx: TILE / 2, deskId: back, rank: ranks[i] + 1, side: 'N', order: 0.55 + i * 0.03 });
-    seat('desk', 'office_chair', lx, 7, 'up', chairV, { dx: TILE / 2, deskId: front, rank: ranks[i], side: 'S', order: 0.6 + i * 0.03 });
-  }
-  furn('trash_bin', 9, 6, undefined, { order: 0.7 });
-
-  // ---- canto de reunião (assentos extras para subagentes: banquetas ou poltronas)
-  if (v.meeting === 'table') {
-    furn('meeting_table', 10, 5, undefined, { order: 0.45 });
-    seat('stool', 'stool', 10, 4, 'down', undefined, { order: 0.65 });
-    seat('stool', 'stool', 12, 4, 'down', undefined, { order: 0.66 });
-    seat('stool', 'stool', 10, 7, 'up', undefined, { order: 0.67 });
-    seat('stool', 'stool', 12, 7, 'up', undefined, { order: 0.68 });
-  } else if (v.meeting === 'round') {
-    // duas mesinhas redondas com duas banquetas cada (em diagonal, para circular entre elas)
-    furn('cafe_table', 11, 4, undefined, { order: 0.45 });
-    seat('stool', 'stool', 10, 4, 'right', undefined, { order: 0.65 });
-    seat('stool', 'stool', 12, 4, 'left', undefined, { order: 0.66 });
-    furn('cafe_table', 11, 7, undefined, { order: 0.46 });
-    seat('stool', 'stool', 10, 7, 'right', undefined, { order: 0.67 });
-    seat('stool', 'stool', 12, 7, 'left', undefined, { order: 0.68 });
-    furn('plant_small', 12, 5, pick(PLANTS_SMALL), { order: 0.47 });
-  } else {
-    // recanto com poltronas e puffs em volta de uma mesa de centro (sem mesa de reunião)
-    rug(9.6, 3.7, 4.8, 4.6, shade(theme.carpet2, 0.25), room.seed + 2);
-    furn('coffee_table', 10, 5, undefined, { order: 0.45 });
-    seat('nook', 'armchair', 9, 5, 'right', undefined, { order: 0.65 }, true);
-    seat('nook', 'armchair', 12, 5, 'left', undefined, { order: 0.66 }, true);
-    seat('nook', 'beanbag', 10, 7, 'up', pick(BEANBAGS), { order: 0.67 });
-    seat('nook', 'beanbag', 11, 7, 'up', pick(BEANBAGS), { order: 0.68 });
-    seat('nook', 'beanbag', 11, 3, 'down', pick(BEANBAGS), { order: 0.69 });
+  // duas ilhas (colunas 2–7 e 9–14): 12 mesas; a coluna 8 é o corredor entre elas
+  rug(8.5, 3.25, 6, 5.5, theme.carpet, room.seed + 2);
+  for (let k = 0; k < 2; k++) {
+    for (let i = 0; i < 3; i++) {
+      const lx = 2 + k * 7 + i * 2;
+      const n = k * 3 + i;
+      const back = furn('desk_back', lx, 5, deskV, { order: 0.35 + n * 0.02, seat: `N${n}` });
+      const front = furn('desk', lx, 6, deskV, { order: 0.47 + n * 0.02, seat: `S${n}` });
+      seat('desk', 'office_chair_front', lx, 4, 'down', chairV, { dx: TILE / 2, deskId: back, rank: k * 6 + ranks[i] + 1, side: 'N', order: 0.6 + n * 0.02 });
+      seat('desk', 'office_chair', lx, 7, 'up', chairV, { dx: TILE / 2, deskId: front, rank: k * 6 + ranks[i], side: 'S', order: 0.73 + n * 0.02 });
+    }
   }
 
   // ---- apoio: estante na parede norte (sem cobrir quadro, placa ou janela) e coluna junto à parede
@@ -187,20 +164,6 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   furn('plant_tall', 14, 2, tall, { order: 0.2 });
   if (north) spot('window', 12, 2, 'up', { dx: 12, dy: 1 });
   else furn('plant_small', 1, 2, pick(PLANTS_SMALL), { order: 0.22 });
-  const column = Math.floor(rng() * 3);
-  if (column === 0) {
-    furn('binder_shelf', 14, 4, undefined, { order: 0.3 });
-    furn('printer', 14, 6, undefined, { order: 0.32 });
-    furn('floor_lamp', 14, 8, undefined, { order: 0.34 });
-  } else if (column === 1) {
-    furn('binder_shelf', 14, 4, undefined, { order: 0.3 });
-    furn('binder_shelf', 14, 5, undefined, { order: 0.31 });
-    furn('floor_lamp', 14, 8, undefined, { order: 0.34 });
-  } else {
-    furn('floor_lamp', 14, 4, undefined, { order: 0.3 });
-    furn('filing_cabinet', 14, 6, undefined, { order: 0.32 });
-    furn('plant_tall', 14, 8, pick(PLANTS_TALL), { order: 0.34 });
-  }
 
   // ---- cantos da parte de baixo (linhas 9–10; a passagem da porta, colunas 6–9, fica livre)
   corner(v.left, 'left');

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FURNITURE, TILE, type FurnitureKind, type RoomTheme } from '../../art/api';
-import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y, SOUTH_Y } from '../constants';
+import { BUILDING_H, COL_W, CORE_COLS, CORRIDOR_Y, FLOOR_COLS, SOUTH_Y } from '../constants';
 import { assembleBuilding, coreAreas } from './building';
-import { columnsFor, slotAt, slotColumn, slotRect, slotSide } from './geometry';
+import { columnsFor, floorOfX, slotAt, slotColumn, slotRect, slotSide } from './geometry';
 import { layoutProjectRoom, roomVariant } from './room';
 import { layoutExterior, slotShell } from './exterior';
 import { RECEPTION_ID } from './core';
@@ -23,58 +23,51 @@ function roomsFor(slots: number[]): AreaLayout[] {
 }
 
 describe('mapeamento de slots', () => {
-  it('coluna = núcleo + floor(slot/2); par = norte, ímpar = sul', () => {
-    expect(slotColumn(0)).toBe(CORE_COLS);
-    expect(slotColumn(1)).toBe(CORE_COLS);
-    expect(slotColumn(2)).toBe(CORE_COLS + 1);
-    expect(slotColumn(7)).toBe(CORE_COLS + 3);
+  it('andar = 1 + floor(slot/4); coluna = 3·andar + 1 + par; par = norte, ímpar = sul', () => {
+    expect(slotColumn(0)).toBe(CORE_COLS + 1);
+    expect(slotColumn(1)).toBe(CORE_COLS + 1);
+    expect(slotColumn(2)).toBe(CORE_COLS + 2);
+    expect(slotColumn(4)).toBe(2 * FLOOR_COLS + 1);
+    expect(slotColumn(7)).toBe(2 * FLOOR_COLS + 2);
     expect(slotSide(0)).toBe('north');
     expect(slotSide(1)).toBe('south');
     expect(slotSide(6)).toBe('north');
-    expect(slotAt(CORE_COLS + 1, 'south')).toBe(3);
+    expect(slotAt(CORE_COLS + 2, 'south')).toBe(3);
+    expect(slotAt(CORE_COLS, 'north')).toBe(-1); // hall do andar
     expect(slotAt(slotColumn(9), slotSide(9))).toBe(9);
+    expect(floorOfX(slotRect(5).x)).toBe(2);
   });
 
   it('retângulos das salas não se sobrepõem e respeitam o corredor', () => {
     const a = slotRect(0);
     const b = slotRect(1);
-    expect(a).toEqual({ x: CORE_COLS * COL_W, y: 0, w: COL_W, h: 12 });
+    expect(a).toEqual({ x: (CORE_COLS + 1) * COL_W, y: 0, w: COL_W, h: 12 });
     expect(b.y).toBe(SOUTH_Y);
     expect(a.y + a.h).toBe(CORRIDOR_Y);
     expect(b.y + b.h).toBe(BUILDING_H);
   });
 
-  it('largura do prédio: núcleo + maior coluna usada + 1 (mínimo 1 coluna de projeto)', () => {
-    expect(columnsFor([])).toBe(CORE_COLS + 1);
-    expect(columnsFor([0, 1])).toBe(CORE_COLS + 1);
-    expect(columnsFor([5])).toBe(CORE_COLS + 3);
-    expect(columnsFor([2, 11])).toBe(CORE_COLS + 6);
+  it('largura do prédio: andares inteiros até o mais alto usado (mínimo 1 andar de salas)', () => {
+    expect(columnsFor([])).toBe(2 * FLOOR_COLS);
+    expect(columnsFor([0, 3])).toBe(2 * FLOOR_COLS);
+    expect(columnsFor([5])).toBe(3 * FLOOR_COLS);
+    expect(columnsFor([2, 11])).toBe(4 * FLOOR_COLS);
   });
 });
 
 describe('layout do prédio', () => {
-  it('abre uma rota do corredor ao jardim no 3D, preservando o layout padrão', () => {
-    for (const cols of [3, 4, 6, 10]) {
-      const b = assembleBuilding(cols, [], 0, true);
-      const garden = b.spots.filter((s) => s.areaId.startsWith('core:jardim'));
-      expect(garden).toHaveLength(4);
-      const finder = new PathFinder(b.grid);
-      for (const spot of garden) {
-        const path: number[] = [];
-        expect(finder.find(2, b.corridor.rect.y + 2, spot.tx, spot.ty, path)).toBe(true);
-        expect(path.length).toBeGreaterThan(0);
-      }
-      expect(assembleBuilding(cols, []).grid.w).toBe(cols * COL_W);
-    }
-  });
   const slots = [0, 1, 2, 3, 4, 7];
   const rooms = roomsFor(slots);
   const cols = columnsFor(slots);
   const b = assembleBuilding(cols, rooms);
   const reception = coreAreas().find((a) => a.id === RECEPTION_ID)!;
-  const elevator = reception.spots.find((s) => s.kind === 'elevator')!;
-  const reach = b.grid.reachableFrom(elevator.tx, elevator.ty);
-  const reachable = (x: number, y: number) => reach[y * b.grid.w + x] === 1;
+  // um mapa de alcance por andar, a partir do elevador daquele andar (andares só se ligam pelo elevador)
+  const reachByFloor = new Map<number, Uint8Array | number[]>();
+  for (const e of b.spots.filter((s) => s.kind === 'elevator')) {
+    const f = floorOfX(e.tx);
+    if (!reachByFloor.has(f)) reachByFloor.set(f, b.grid.reachableFrom(e.tx, e.ty));
+  }
+  const reachable = (x: number, y: number) => reachByFloor.get(floorOfX(x))?.[y * b.grid.w + x] === 1;
 
   it('há dois elevadores com tiles de aproximação caminháveis', () => {
     const elevators = reception.spots.filter((s) => s.kind === 'elevator');
@@ -82,7 +75,7 @@ describe('layout do prédio', () => {
     for (const e of elevators) expect(b.grid.walkable(e.tx, e.ty)).toBe(true);
   });
 
-  it('todos os spots são alcançáveis a partir dos elevadores', () => {
+  it('todos os spots são alcançáveis a partir do elevador do seu andar', () => {
     const unreachable = b.spots.filter((s) => !reachable(s.tx, s.ty)).map((s) => s.id);
     expect(unreachable).toEqual([]);
   });
@@ -105,13 +98,12 @@ describe('layout do prédio', () => {
     }
   });
 
-  it('cada sala tem 6 mesas, ao menos 4 lugares extras sentados, interruptor e quadro', () => {
+  it('cada sala tem 12 mesas (duas ilhas), interruptor e quadro', () => {
     for (const room of rooms) {
       const desks = room.spots.filter((s) => s.kind === 'desk');
-      expect(desks).toHaveLength(6);
-      expect(new Set(desks.map((d) => d.rank))).toEqual(new Set([0, 1, 2, 3, 4, 5]));
-      expect(desks.filter((d) => d.side === 'N')).toHaveLength(3);
-      expect(room.spots.filter((s) => s.kind === 'stool' || s.kind === 'nook').length).toBeGreaterThanOrEqual(4);
+      expect(desks).toHaveLength(12);
+      expect(new Set(desks.map((d) => d.rank))).toEqual(new Set(Array.from({ length: 12 }, (_, i) => i)));
+      expect(desks.filter((d) => d.side === 'N')).toHaveLength(6);
       expect(room.spots.filter((s) => s.kind === 'stand').length).toBeGreaterThanOrEqual(3);
       expect(room.spots.filter((s) => s.kind === 'switch')).toHaveLength(1);
       expect(room.wallItems.some((w) => w.kind === 'whiteboard')).toBe(true);
@@ -218,8 +210,7 @@ describe('variações das salas de projeto', () => {
         const r = room.rect;
         for (let y = r.y + 2; y < r.y + 11; y++)
           for (let x = r.x + 1; x < r.x + 15; x++) if (b.grid.walkable(x, y)) expect(reach[y * b.grid.w + x], `tile ${x},${y} isolado (semente ${seed})`).toBe(1);
-        expect(room.spots.filter((sp) => sp.kind === 'desk')).toHaveLength(6);
-        expect(room.spots.filter((sp) => sp.kind === 'stool' || sp.kind === 'nook').length).toBeGreaterThanOrEqual(4);
+        expect(room.spots.filter((sp) => sp.kind === 'desk')).toHaveLength(12);
         // spots de uso não podem cair em cima de móvel que bloqueia
         for (const sp of room.spots) expect(b.grid.walkable(sp.tx, sp.ty), `${sp.id} sobre móvel`).toBe(true);
         expect(hiddenWallItems(room)).toEqual([]);

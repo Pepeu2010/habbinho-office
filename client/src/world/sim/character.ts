@@ -63,6 +63,10 @@ export class Character {
   thinkAt = 0;
   /** Subagente já entregou o resultado ao pai. */
   delivered = false;
+  /** Pai reunindo os subagentes que disparou (epoch ms até quando eles devem passar pela mesa de reunião). */
+  briefingUntil = 0;
+  /** Subagente que já passou pela reunião do pai. */
+  briefed = false;
   /** Fim do uso da cabine (ms epoch). */
   stallUntil = 0;
   /** Origem do encaixe/saída de um assento (interpolação curta). */
