@@ -75,7 +75,9 @@ export function updateAgentRow(
   setText(r.name, agent.name);
   updateAccountChip(r.chip, account, agent.account, agent.provider);
   updateRoleBadge(r.role, agent);
-  const title = agent.title?.trim() ?? '';
+  // título igual ao nome (comum no OpenBot) só repetiria a linha de cima
+  const raw = agent.title?.trim() ?? '';
+  const title = raw.toLowerCase() === agent.name.trim().toLowerCase() ? '' : raw;
   setText(r.task, title);
   setTitle(r.task, title);
   setHidden(r.task, !title);

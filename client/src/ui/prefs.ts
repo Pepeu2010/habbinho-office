@@ -37,7 +37,7 @@ export const DEFAULT_PREFS: UiPrefs = {
   sounds: DEFAULT_SOUND_SETTINGS,
   browserNotifications: false,
   sidebarOpen: true,
-  feedOpen: true,
+  feedOpen: false,
   hiddenAccounts: [],
   worldVisitNotify: true,
 };

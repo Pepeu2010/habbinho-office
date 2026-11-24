@@ -1,0 +1,230 @@
+/* Tema "cozy" (sobre theme.css): painéis creme e texto cacau, combinando com os bonecos de vinil e o escritório de
+   madeira clara. Só cores: tamanhos, fontes e comportamento continuam em theme.css e styles.css. */
+
+.ui-root {
+  --ink-900: #3d2a1f;
+  --ink-800: #4a3426;
+  --ink-700: #6b4d3a;
+  --glass: rgba(255, 249, 240, 0.94);
+  --glass-strong: rgba(255, 250, 243, 0.98);
+  --periwinkle: #e8835a;
+  --mint: #1f8a63;
+  --sunflower: #e3a018;
+  --coral: #e4566a;
+
+  --ui-bg-soft: rgba(150, 100, 60, 0.07);
+  --ui-bg-hover: rgba(150, 100, 60, 0.12);
+  --ui-line: rgba(130, 85, 50, 0.16);
+  --ui-line-strong: rgba(130, 85, 50, 0.3);
+  --ui-text: #4a3426;
+  --ui-muted: #85695a;
+  --ui-faint: #9a8070;
+  /* terracota escura: legível como texto sobre o creme (o botão primário tem gradiente próprio) */
+  --ui-accent: #c25a32;
+  --ui-accent-soft: rgba(232, 131, 90, 0.18);
+  --st-done: #6f8fd8;
+
+  color: var(--ui-text);
+}
+
+.ui-root .ui-panel,
+.ui-root .ui-topbar__left,
+.ui-root .ui-counters,
+.ui-root .ui-topbar__right,
+.ui-root .ui-usage-card {
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.96), rgba(250, 239, 225, 0.96));
+  border: 1px solid rgba(150, 100, 60, 0.18);
+  box-shadow:
+    0 14px 30px rgba(90, 60, 35, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.ui-root .ui-counter__value,
+.ui-root .ui-brand__name::before {
+  color: var(--ui-text);
+}
+
+.ui-root .ui-usage-card__logo[data-p='codex'] {
+  background: radial-gradient(circle at 35% 30%, #6b4d3a, #3d2a1f);
+}
+
+.ui-root .ui-usage-card__badge > .ui-acc-chip {
+  box-shadow: 0 0 0 2px #fbf1e4;
+}
+
+.ui-building-gallery::backdrop {
+  background: rgba(60, 40, 25, 0.45);
+}
+
+.ui-root .ui-room {
+  background: rgba(150, 100, 60, 0.05);
+  border-color: rgba(150, 100, 60, 0.14);
+}
+
+.ui-root .ui-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #d9744a, #bd5630);
+  box-shadow: 0 6px 16px rgba(189, 86, 48, 0.3);
+}
+
+.ui-root .ui-btn--primary:hover {
+  background: linear-gradient(180deg, #e2825a, #c9623b);
+}
+
+.ui-root .ui-avatar.is-3d {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.5), transparent 65%),
+    color-mix(in srgb, var(--acc, #e8835a) 35%, #f6e6d4);
+}
+
+.ui-root .ui-usage-card__meters.is-dim .ui-meter {
+  --lv: #8e7a6c;
+}
+
+.ui-root .ui-meter__reset {
+  color: var(--ui-muted);
+}
+
+.ui-root .ui-social__delta {
+  color: #94600a;
+}
+
+.ui-root .ui-plus {
+  color: #1f8a63;
+}
+
+.ui-root .ui-minus {
+  color: #c23a4e;
+}
+
+.ui-root .ui-meter__bar {
+  background: rgba(150, 100, 60, 0.14);
+}
+
+/* textos claros fixos em styles.css (feitos para o vidro escuro), em tons legíveis sobre o creme;
+   o terminal e os selos de fundo escuro continuam como estão */
+.ui-root .ui-counter__value,
+.ui-root .ui-md strong,
+.ui-root .ui-md__h,
+.ui-root .ui-perm__tool strong {
+  color: var(--ui-text);
+}
+
+.ui-root .ui-acc-item,
+.ui-root .ui-ask__question,
+.ui-root .ui-empty__text,
+.ui-root .ui-help__intro,
+.ui-root .ui-help__lead,
+.ui-root .ui-help__list,
+.ui-root .ui-hero__title,
+.ui-root .ui-md__pre,
+.ui-root .ui-md__table,
+.ui-root .ui-now__details pre,
+.ui-root .ui-perm-ask__opt-text strong,
+.ui-root .ui-perm__tool,
+.ui-root .ui-prov,
+.ui-root .ui-shell-legend li,
+.ui-root .ui-shell-mood,
+.ui-root .ui-shell__cmd pre,
+.ui-root .ui-trait,
+.ui-root .ui-usage-setup__inline,
+.ui-root .ui-usage-tip__note {
+  color: var(--ui-muted);
+}
+
+.ui-root .ui-agent.is-waiting .ui-activity__text,
+.ui-root .ui-alert,
+.ui-root .ui-btn.is-confirm,
+.ui-root .ui-city-toast,
+.ui-root .ui-deliv-card__new,
+.ui-root .ui-feed__item.is-social .ui-feed__text,
+.ui-root .ui-lapse__peak,
+.ui-root .ui-lapse__peak:hover,
+.ui-root .ui-perm,
+.ui-root .ui-perm__always-label,
+.ui-root .ui-perm__queue,
+.ui-root .ui-perm__timer,
+.ui-root .ui-scene-btn,
+.ui-root .ui-shell__badge--fg,
+.ui-root .ui-social__balance,
+.ui-root .ui-social__coins,
+.ui-root .ui-social__entry.is-plus .ui-social__delta,
+.ui-root .ui-toast__answer,
+.ui-root .ui-usage-card__flag,
+.ui-root .ui-usage-card__state,
+.ui-root .ui-visit-bar__title,
+.ui-root .ui-world-chip__visitors {
+  color: #94600a;
+}
+
+.ui-root .ui-msg__status.is-error,
+.ui-root .ui-perm__btn--deny,
+.ui-root .ui-perm__status.is-error {
+  color: #bf3a4d;
+}
+
+.ui-root .ui-day__badge,
+.ui-root .ui-demo-badge,
+.ui-root .ui-role--sub,
+.ui-root .ui-shell__badge--monitor,
+.ui-root .ui-visit-bar__mode.is-away {
+  color: #6a4fb0;
+}
+
+.ui-root .ui-deliv-initial,
+.ui-root .ui-md__h2,
+.ui-root .ui-msg--drawer .ui-msg__send,
+.ui-root .ui-role,
+.ui-root .ui-social__doing,
+.ui-root .ui-world-sent__json {
+  color: #2f6aa3;
+}
+
+.ui-root .ui-activity.is-shell .ui-activity__text,
+.ui-root .ui-activity.is-shell-ok .ui-activity__text,
+.ui-root .ui-alert--shell,
+.ui-root .ui-feed__item.is-shell-ok .ui-feed__text,
+.ui-root .ui-msg__status.is-ok,
+.ui-root .ui-perm__btn--allow,
+.ui-root .ui-perm__status:not(:empty),
+.ui-root .ui-shell__badge--bg {
+  color: #1d7f68;
+}
+
+.ui-root .ui-now__details pre,
+.ui-root .ui-shell__cmd pre,
+.ui-root .ui-md__pre,
+.ui-root .ui-world-sent__json {
+  background: rgba(120, 80, 50, 0.08);
+}
+
+/* fundos "afundados" (preto translúcido) sobre os painéis viram um bege suave; o terminal continua escuro */
+.ui-root .ui-usage-setup__cmd,
+.ui-root .ui-search,
+.ui-root .ui-seg,
+.ui-root .ui-term-cta,
+.ui-root .ui-term-cta.is-disabled:hover,
+.ui-root .ui-msg--drawer .ui-msg__input,
+.ui-root .ui-md__block,
+.ui-root .ui-lapse__track,
+.ui-root .ui-perm__reason,
+.ui-root .ui-perm-ask__opt,
+.ui-root .ui-perm-ask__text,
+.ui-root .ui-snd__chip,
+.ui-root .ui-day__account,
+.ui-root .ui-char__name,
+.ui-root .ui-char__name.is-fixed,
+.ui-root .ui-deliv-thumb,
+.ui-root .ui-deliv-md pre,
+.ui-root .ui-world__select,
+.ui-root .ui-world__bstats li {
+  background: rgba(120, 80, 50, 0.08);
+}
+
+.ui-root .ui-snd__range::-webkit-slider-runnable-track {
+  background: rgba(120, 80, 50, 0.14);
+}
+
+.ui-root .ui-snd__range::-moz-range-track {
+  background: rgba(120, 80, 50, 0.14);
+}

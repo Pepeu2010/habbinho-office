@@ -175,6 +175,16 @@
   box-shadow: 0 14px 30px rgba(10, 12, 32, 0.3);
 }
 
+/* conta sem números: cartão compacto (só nome, "sem dados" e "Ativar"), sem o e-mail ocupando o meio do topo */
+.ui-root .ui-usage-card.is-empty {
+  width: 196px;
+  min-width: 196px;
+}
+
+.ui-root .ui-usage-card.is-empty .ui-usage-card__email {
+  display: none;
+}
+
 .ui-root .ui-usage-card__badge {
   position: relative;
   display: grid;

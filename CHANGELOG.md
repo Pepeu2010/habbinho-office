@@ -12,6 +12,12 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Bonecos mais fofinhos.** No 3D, o elenco ganhou cabeçona, tronco mais gordinho e mãos e pés mais redondos, no estilo
+  boneco de vinil, sem perder nenhuma animação.
+- **Interface cozy.** Os painéis trocaram o vidro índigo por creme com texto cacau e destaque terracota, combinando
+  com o escritório; o terminal continua escuro. Conta sem dados de uso vira um cartão compacto no topo (sem o
+  e-mail), o painel de Atividade começa recolhido e mais estreito, e o card do agente não repete o nome quando o
+  título da sessão é igual a ele.
 - **Andares de verdade com elevador.** O escritório fica mais compacto: cada andar tem três colunas de salas, separadas
   por vidro no 2D, e todo mundo troca de andar pelo elevador. No 3D, o menu do prédio ganhou botões de andar
   (Térreo, Andar 1...), só o andar escolhido aparece e a câmera segue o agente acompanhado quando ele muda de andar.

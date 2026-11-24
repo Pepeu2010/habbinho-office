@@ -63,6 +63,17 @@ export interface CollectionModel {
   scale: number;
 }
 
+/** Escala extra por osso do elenco: cabeção e mãos/pés redondinhos, como bonecos de vinil. */
+export const COZY_BONES: ReadonlyArray<readonly [string, number]> = [
+  ['Head', 1.32],
+  ['Hand.L', 1.35],
+  ['Hand.R', 1.35],
+  ['Foot.L', 1.2],
+  ['Foot.R', 1.2],
+];
+/** Tronco: largura e altura relativas. */
+export const COZY_TORSO = [1.1, 0.94] as const;
+
 /** A semente escolhe o boneco sem alterar a identidade salva do agente. */
 export function collectionFor(seed: number): CollectionId {
   return COLLECTION[(seed >>> 0) % COLLECTION.length]!;
@@ -163,6 +174,13 @@ export class CharacterAssets {
     let pending = this.collection.get(id);
     if (!pending) {
       pending = loadGltf(`${BASE}office-collection/characters/${id}.glb`).then(({ scene, animations }) => {
+        // proporções "cozy": cabeça, mãos e pés maiores; nenhum clipe anima a escala desses ossos, então vale para sempre
+        const bone = (name: string) => scene.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name));
+        for (const [name, k] of COZY_BONES) bone(name)?.scale.setScalar(k);
+        // tronco mais gordinho; os filhos desfazem a escala para braços e cabeça não esticarem
+        const [sw, sy] = COZY_TORSO;
+        bone('Spine')?.scale.set(sw, sy, sw);
+        for (const name of ['Clavicle.L', 'Clavicle.R', 'Neck']) bone(name)?.scale.set(1 / sw, 1 / sy, 1 / sw);
         scene.updateMatrixWorld(true);
         scene.traverse((o) => {
           const mesh = o as THREE.SkinnedMesh;

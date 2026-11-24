@@ -41,7 +41,7 @@
   --drawer-w: 380px;
   --feed-h: 200px;
   --feed-head: 38px;
-  --feed-max: 700px;
+  --feed-max: 480px;
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
   /* Área livre do escritório (fora dos painéis), mantida pelo JS (ui/viewport.ts). */
   --free-top: calc(var(--top-h) + var(--gap));

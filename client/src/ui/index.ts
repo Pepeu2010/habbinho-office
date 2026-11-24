@@ -11,6 +11,7 @@ import '@fontsource-variable/fredoka';
 import '@fontsource-variable/nunito';
 import './styles.css';
 import './theme.css';
+import './theme-cozy.css';
 
 import type { OfficeStore } from '../net/store';
 import type { Selection, WorldApi } from '../world/api';
