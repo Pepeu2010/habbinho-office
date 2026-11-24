@@ -4,6 +4,12 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { HorizontalTiltShiftShader } from 'three/addons/shaders/HorizontalTiltShiftShader.js';
+import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftShader.js';
+import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import type { GraphicsQuality } from '../world/api';
 
 export type Quality = GraphicsQuality;
@@ -15,13 +21,15 @@ interface QualitySpec {
   shadowSize: number;
   ao: boolean;
   msaa: number;
+  /** Brilho nas luzes (abajur, telas, janelas à noite) e desfoque de maquete na visão geral. */
+  glow: boolean;
 }
 
 const SPEC: Record<Quality, QualitySpec> = {
-  low: { pixelRatio: 0.85, shadows: false, shadowSize: 1024, ao: false, msaa: 0 },
-  medium: { pixelRatio: 1, shadows: true, shadowSize: 1024, ao: false, msaa: 4 },
-  high: { pixelRatio: 1.5, shadows: true, shadowSize: 2048, ao: true, msaa: 4 },
-  ultra: { pixelRatio: 2, shadows: true, shadowSize: 4096, ao: true, msaa: 8 },
+  low: { pixelRatio: 0.85, shadows: false, shadowSize: 1024, ao: false, msaa: 0, glow: false },
+  medium: { pixelRatio: 1, shadows: true, shadowSize: 1024, ao: false, msaa: 4, glow: false },
+  high: { pixelRatio: 1.5, shadows: true, shadowSize: 2048, ao: true, msaa: 4, glow: true },
+  ultra: { pixelRatio: 2, shadows: true, shadowSize: 4096, ao: true, msaa: 8, glow: true },
 };
 
 const QKEY = 'habblaud.3d.quality';
@@ -56,6 +64,10 @@ export class Stage {
   readonly hemi: THREE.HemisphereLight;
   private composer: EffectComposer | null = null;
   private ao: GTAOPass | null = null;
+  private bloom: UnrealBloomPass | null = null;
+  private tilt: ShaderPass[] = [];
+  /** Visão de maquete (fora do modo andar): desfoca as bordas de cima e de baixo, como uma miniatura fotografada. */
+  miniature = false;
   quality: Quality;
   /** 0 = dia pleno, 1 = noite fechada (para as luzes das salas). */
   night = 0;
@@ -76,7 +88,7 @@ export class Stage {
     this.scene.background = SKY_DAY.clone();
     this.scene.fog = new THREE.Fog(SKY_DAY.clone(), 90, 220);
 
-    this.hemi = new THREE.HemisphereLight('#edf4ff', '#b59b78', 1.20);
+    this.hemi = new THREE.HemisphereLight('#edf4ff', '#b7a3c2', 1.20);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#fff1dc', 2.6);
     this.sun.castShadow = true;
@@ -84,6 +96,11 @@ export class Stage {
     this.sun.shadow.normalBias = 0.019;
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
+    // reflexo suave de um estúdio claro: tira o ar de plástico chapado sem custo por quadro
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    this.scene.environmentIntensity = 0.18;
     this.applyQuality();
   }
 
@@ -104,6 +121,8 @@ export class Stage {
     this.composer?.dispose();
     this.composer = null;
     this.ao = null;
+    this.bloom = null;
+    this.tilt = [];
     this.scene.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (m) m.needsUpdate = true;
@@ -118,7 +137,21 @@ export class Stage {
       composer.addPass(ao);
       this.ao = ao;
     }
+    if (s.glow) {
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0, 0.5, 0.95);
+      composer.addPass(this.bloom);
+    }
     composer.addPass(new OutputPass());
+    if (s.glow) {
+      this.tilt = [new ShaderPass(HorizontalTiltShiftShader), new ShaderPass(VerticalTiltShiftShader)];
+      for (const p of this.tilt) { p.uniforms['r']!.value = 0.5; composer.addPass(p); }
+    }
+    if (this.quality !== 'low') {
+      const v = new ShaderPass(VignetteShader);
+      v.uniforms['offset']!.value = 0.95;
+      v.uniforms['darkness']!.value = 0.75;
+      composer.addPass(v);
+    }
     this.composer = composer;
     this.resize(this.w, this.h);
   }
@@ -132,6 +165,11 @@ export class Stage {
     this.composer?.setPixelRatio(this.renderer.getPixelRatio());
     this.composer?.setSize(this.w, this.h);
     this.ao?.setSize(this.w * this.renderer.getPixelRatio(), this.h * this.renderer.getPixelRatio());
+    const [th, tv] = this.tilt;
+    if (th && tv) {
+      th.uniforms['h']!.value = 1.6 / (this.w * this.renderer.getPixelRatio());
+      tv.uniforms['v']!.value = 1.6 / (this.h * this.renderer.getPixelRatio());
+    }
   }
 
   /** Ajusta a câmera de sombra ao prédio inteiro. */
@@ -164,6 +202,8 @@ export class Stage {
     this.sun.color.set(isDay ? (dusk > 0.3 ? '#ffd0a3' : '#ffead0') : '#a6b7e6');
     this.hemi.intensity = isDay ? 0.76 + elev * 0.48 : 0.46;
     this.hemi.color.set(isDay ? '#e8f2ff' : '#8799c6');
+    // chão lavanda: o lado de baixo das coisas pega um roxinho pastel em vez de marrom
+    this.hemi.groundColor.set(isDay ? '#b7a3c2' : '#5a4f78');
     const cam = this.sun.shadow.camera;
     const half = Math.max(size.x, size.z) * 0.62 + 6;
     cam.left = -half;
@@ -174,9 +214,13 @@ export class Stage {
     cam.far = r * 3;
     cam.updateProjectionMatrix();
     this.renderer.toneMappingExposure = isDay ? 1.04 : 1.1;
+    this.scene.environmentIntensity = 0.18 - this.night * 0.1;
+    // de dia o chão claro passaria do limiar e viraria névoa: brilho só quando escurece
+    if (this.bloom) { this.bloom.strength = this.night * 0.4; this.bloom.enabled = this.night > 0.05; }
   }
 
   render(): void {
+    for (const p of this.tilt) p.enabled = this.miniature;
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
   }
@@ -187,6 +231,7 @@ export class Stage {
   }
 
   dispose(): void {
+    this.scene.environment?.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
   }

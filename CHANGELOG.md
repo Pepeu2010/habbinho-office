@@ -12,6 +12,9 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Escritório 3D mais bonitinho.** Reflexo suave de estúdio nos materiais, sombras de baixo num lavanda pastel,
+  contorno de desenho nos bonecos, plantas balançando com a brisa e vinheta leve. Na qualidade alta e ultra, as luzes
+  brilham à noite (abajur, telas, janelas) e a visão geral ganha desfoque de maquete nas bordas (some no modo andar).
 - **Bonecos personalizados mais caprichados.** O dono e os agentes editados no 3D usam o boneco do elenco Blender
   mais parecido (penteado e acessório) repintado com as cores da aparência, no lugar do boneco montado em código.
 - **Dono do escritório.** Editor com prévia 3D e controles de nome, cabelo, pele, roupa e acessórios para o personagem

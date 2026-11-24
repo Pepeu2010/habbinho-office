@@ -46,6 +46,8 @@ export interface FurnitureHooks {
   pingpong?: PingPongDisplay;
   arcade?: THREE.Mesh;
   steam?: THREE.Group;
+  /** Planta inteira num pivô no centro do vaso: balança com a brisa. */
+  sway?: THREE.Object3D;
   lamp?: THREE.Mesh;
   drawer?: { obj: THREE.Object3D; handle: THREE.Object3D; z: number };
   /** Objeto que o dono usa no Passear (E): a peça que muda e serve de ponto de alcance. */
@@ -965,6 +967,14 @@ export function buildFloorFurniture(kind: FurnitureKind, w: number, h: number, c
   const b = FLOOR[kind];
   if (b) b(g, w, h, ctx, hooks);
   else block(g, w - 0.2, 0.5, h - 0.2, PAL.grey, w / 2, 0, h / 2);
+  if (kind === 'plant_small' || kind === 'plant_tall') {
+    const pivot = new THREE.Group();
+    pivot.position.set(0.5, 0, 0.5);
+    pivot.userData.dynamic = true;
+    for (const c of [...g.children]) { c.position.x -= 0.5; c.position.z -= 0.5; pivot.add(c); }
+    g.add(pivot);
+    hooks.sway = pivot;
+  }
   return { obj: g, hooks };
 }
 

@@ -348,6 +348,11 @@ export class Building3D {
           else if (kind === 'shelf') part.visible = !this.used.get(id);
         }
         if (hooks.arcade) hooks.arcade.material = arcadeScreen(arcade ? 1 + Math.floor(now / 110) % 7 : 0);
+        if (hooks.sway) {
+          const ph = hooks.sway.parent!.position.x * 0.7 + hooks.sway.parent!.position.z * 0.4;
+          hooks.sway.rotation.z = Math.sin(now / 1300 + ph) * 0.035;
+          hooks.sway.rotation.x = Math.sin(now / 1700 + ph * 1.3) * 0.025;
+        }
         if (hooks.steam) {
           hooks.steam.visible = (sim.machineUntil.get(id) ?? 0) > now;
           if (hooks.steam.visible) hooks.steam.children.forEach((puff, i) => {

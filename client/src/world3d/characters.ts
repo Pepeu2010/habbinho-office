@@ -57,6 +57,8 @@ class Avatar implements AvatarView {
   private model: LoadedModel | CollectionModel | null = null;
   private modelId = '';
   private mixer: THREE.AnimationMixer | null = null;
+  /** Contorno macio (casco invertido) dos bonecos do elenco; some durante o fade de chegada/saída. */
+  private outlines: THREE.SkinnedMesh[] = [];
   private actions = new Map<string, THREE.AnimationAction>();
   private current: { name: string; action: THREE.AnimationAction } | null = null;
   private yaw = 0;
@@ -133,7 +135,9 @@ class Avatar implements AvatarView {
       for (const g of this.ownGeometry) g.dispose();
       this.ownGeometry = [];
       this.face?.dispose();
+      (this.outlines[0]?.material as THREE.Material | undefined)?.dispose();
     }
+    this.outlines = [];
     if ('rig' in model) assets.refreshClips(model);
     this.model = model;
     this.modelId = id;
@@ -160,6 +164,17 @@ class Avatar implements AvatarView {
         mesh.material = own;
         this.materials.push(own);
       });
+      const skinned: THREE.SkinnedMesh[] = [];
+      body.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinned.push(o as THREE.SkinnedMesh); });
+      const line = outlineMaterial();
+      for (const mesh of skinned) {
+        const o = new THREE.SkinnedMesh(mesh.geometry, line);
+        o.bind(mesh.skeleton, mesh.bindMatrix);
+        o.frustumCulled = false;
+        mesh.parent!.add(o);
+        o.position.copy(mesh.position); o.quaternion.copy(mesh.quaternion); o.scale.copy(mesh.scale);
+        this.outlines.push(o);
+      }
     }
     this.body = body;
     this.root.add(body);
@@ -357,6 +372,7 @@ class Avatar implements AvatarView {
 
     // alpha (chegada/saída)
     const alpha = THREE.MathUtils.clamp(ch.alpha, 0, 1);
+    for (const o of this.outlines) o.visible = alpha > 0.999;
     for (const m of this.materials) {
       const tr = alpha < 0.999 || m === this.faceMat;
       if (m.transparent !== tr) {
@@ -418,6 +434,7 @@ class Avatar implements AvatarView {
     this.disposed = true;
     this.mixer?.stopAllAction();
     for (const m of this.materials) m.dispose();
+    (this.outlines[0]?.material as THREE.Material | undefined)?.dispose();
     this.face?.dispose();
     (this.ring.material as THREE.Material).dispose();
     this.ring.geometry.dispose();
@@ -604,4 +621,13 @@ export function expressionFor(pose: string, reaction: Reaction | undefined, stat
     default:
       return 'neutral';
   }
+}
+
+/** Casco invertido: a malha empurrada pela normal, só o lado de trás, num roxo escuro — vira um traço de desenho. */
+function outlineMaterial(): THREE.MeshBasicMaterial {
+  const m = new THREE.MeshBasicMaterial({ color: '#3a2c48', side: THREE.BackSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <skinning_vertex>', '#include <skinning_vertex>\n  transformed += normalize(objectNormal) * 0.007;');
+  };
+  return m;
 }

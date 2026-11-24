@@ -630,6 +630,7 @@ export function createWorld3D(canvas: HTMLCanvasElement, store: OfficeStore): Wo
         coffeeSource: walk.coffeeSource(real),
       });
       fx.update(realDt, stage.camera);
+      stage.miniature = !walk.active;
       if (!ownerEditor?.open) stage.render();
       labels.update(sim, (id) => avatars.get(id), stage.camera, viewW, viewH, now, options, sel, hover,
         npcAvatars.list.values(), !walk.active && cam.state.dist > 47);
