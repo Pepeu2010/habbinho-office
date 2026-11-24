@@ -57,8 +57,8 @@ export function updateStatusLine(version: string, s: UpdateStatus | undefined, n
 
 /** Dica do número de versão na barra superior. */
 export function versionChipTitle(version: string, s: UpdateStatus | undefined, now: number): string {
-  if (s?.available && s.latest) return tr('Nova versão do Habblaud: v{0} (você usa a v{1}). Clique para ver as novidades e como atualizar.', [s.latest, version]);
-  return tr('Habblaud v{0}. {1} Clique para ver detalhes.', [version, updateStatusLine(version, s, now).text]);
+  if (s?.available && s.latest) return tr('Nova versão do Habbinho Office: v{0} (você usa a v{1}). Clique para ver as novidades e como atualizar.', [s.latest, version]);
+  return tr('Habbinho Office v{0}. {1} Clique para ver detalhes.', [version, updateStatusLine(version, s, now).text]);
 }
 
 /** Número da versão na barra superior; vira o selo "Nova versão" quando há release mais nova. */
@@ -114,7 +114,7 @@ export class UpdateToaster implements UiComponent {
     } catch {
       // Sem armazenamento: avisa uma vez por página aberta.
     }
-    this.push({ id: `update:${s.latest}`, level: 'success', text: tr('Nova versão do Habblaud: v{0}. Veja as novidades e como atualizar em Configurações › Sobre.', [s.latest]), at: this.ctx.now() });
+    this.push({ id: `update:${s.latest}`, level: 'success', text: tr('Nova versão do Habbinho Office: v{0}. Veja as novidades e como atualizar em Configurações › Sobre.', [s.latest]), at: this.ctx.now() });
   }
 }
 
@@ -142,7 +142,7 @@ export class AboutGroup {
       h(
         'p',
         { class: 'ui-set__hint' },
-        tr('Para atualizar, na pasta do Habblaud: '),
+        tr('Para atualizar, na pasta do Habbinho Office: '),
         h('code', { class: 'ui-usage-setup__cmd', text: 'git pull' }),
         tr(' e de novo '),
         h('code', { class: 'ui-usage-setup__cmd', text: 'npm run docker:up' }),
@@ -202,9 +202,9 @@ export class AboutGroup {
     this.failure = undefined;
     this.render();
     try {
-      if (!(await this.ctx.store.checkUpdates())) this.failure = tr('Não deu para falar com o servidor do Habblaud.');
+      if (!(await this.ctx.store.checkUpdates())) this.failure = tr('Não deu para falar com o servidor do Habbinho Office.');
     } catch {
-      this.failure = tr('Não deu para falar com o servidor do Habblaud.');
+      this.failure = tr('Não deu para falar com o servidor do Habbinho Office.');
     } finally {
       this.checking = false;
       this.render();

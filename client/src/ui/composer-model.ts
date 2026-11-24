@@ -9,7 +9,7 @@ import { tr } from '../../../shared/i18n';
 /** Dica para quem tem o recurso ligado, mas a sessão do agente não está com o plugin conectado. */
 export const PLUGIN_HINT = tr('Para mandar mensagens daqui: npm run mod:install (plugin habblaud-mensagens)');
 /** A mesma dica para um agente do Codex sem entregador (no modo Node o próprio servidor entrega). */
-export const CODEX_BRIDGE_HINT = tr('Para mandar mensagens ao Codex: com o Habblaud no Docker, deixe npm run codex:bridge rodando; no modo Node funciona sozinho');
+export const CODEX_BRIDGE_HINT = tr('Para mandar mensagens ao Codex: com o Habbinho Office no Docker, deixe npm run codex:bridge rodando; no modo Node funciona sozinho');
 export const OPENBOT_HINT = tr('Abra o OpenBot e ative Local scripts no agente para receber tarefas daqui.');
 
 /**
@@ -35,7 +35,7 @@ export function composerMode(agent: AgentInfo | undefined, env: ComposerEnv): Co
   const codex = agent.provider === 'codex';
   if (agent.provider === 'openbot' && !env.enabled) return { kind: 'off', text: OPENBOT_HINT };
   if (!env.enabled) return { kind: 'off', text: codex ? tr('Para responder, use o Codex') : tr('Para responder, use o terminal do Claude Code') };
-  if (!env.local) return { kind: 'off', text: tr('Para mandar mensagens por aqui, abra o Habblaud por http://localhost (ou 127.0.0.1)') };
+  if (!env.local) return { kind: 'off', text: tr('Para mandar mensagens por aqui, abra o Habbinho Office por http://localhost (ou 127.0.0.1)') };
   if (!agent.canMessage) return { kind: 'hint', text: agent.provider === 'openbot' ? OPENBOT_HINT : codex ? CODEX_BRIDGE_HINT : PLUGIN_HINT };
   return { kind: 'ready' };
 }
@@ -121,10 +121,10 @@ export function pollDelay(elapsed: number): number {
   return 3_000;
 }
 
-export const LOST_ERROR = tr('o Habblaud não conhece mais esta mensagem (ele reiniciou?)');
+export const LOST_ERROR = tr('o Habbinho Office não conhece mais esta mensagem (ele reiniciou?)');
 export const TIMEOUT_ERROR = tr('sem notícia da entrega: confira no terminal do Claude Code');
 export const CODEX_TIMEOUT_ERROR = tr('sem notícia da entrega: confira no Codex');
-export const OFFLINE_ERROR = tr('não foi possível falar com o Habblaud');
+export const OFFLINE_ERROR = tr('não foi possível falar com o Habbinho Office');
 
 /** Prazo da consulta acabou sem notícia: onde conferir. */
 export function timeoutError(provider: Provider = 'claude'): string {
