@@ -13,7 +13,7 @@ do meio (0.**3**.0).
 ### Adicionado
 
 - **Novo nome: Habbinho Office.** O nome visível mudou em todos os idiomas, e a placa da recepção no 2D agora diz
-  "Habbinho Office" em duas linhas.
+  "Habbinho Office" em duas linhas. O favicon virou o monograma "HO".
 - **README com galeria.** Imagem de capa nova e galeria com as melhores cenas do escritório 3D (mesas, campus
   de dia e à noite, elenco e modo Passear) nos quatro idiomas.
 - **Escritório 3D mais bonitinho.** Reflexo suave de estúdio nos materiais, sombras de baixo num lavanda pastel,

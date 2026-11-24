@@ -181,12 +181,12 @@ def app_icon(mark: Image.Image, canvas: int, factor: int, ground_gap: int) -> Im
 def build_brand(detailed: Image.Image | None, out_root: Path) -> dict:
     brand = out_root / "brand"
     brand.mkdir(parents=True, exist_ok=True)
-    mark32, mark16 = art.mark(32), art.mark(16)
+    mark32 = art.mark(32)
     sign = art.signage()
     mark32.save(brand / "logo-mark.png")
     px.upscale(mark32, 4).save(brand / "logo-mark@4x.png")
-    mark16.save(brand / "favicon-16.png")
-    mark32.save(brand / "favicon-32.png")
+    art.favicon(16).save(brand / "favicon-16.png")
+    art.favicon(32).save(brand / "favicon-32.png")
     sign.save(brand / "signage.png")
     px.upscale(sign, 4).save(brand / "signage@4x.png")
     app_icon(mark32, 45, 4, 4).save(brand / "apple-touch-icon.png")

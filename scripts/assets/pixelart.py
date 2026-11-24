@@ -288,6 +288,26 @@ def signage() -> Image.Image:
     return img
 
 
+def favicon(size: int) -> Image.Image:
+    """Favicon 16/32: monograma "HO" (H claro, O âmbar, como a placa) num quadrado azul-marinho arredondado."""
+    if size not in (16, 32):
+        raise ValueError(f"favicon só existe em 16 e 32 px (pedido: {size})")
+    k = size // 16  # 32 px = desenho de 16 px dobrado
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    px = img.load()
+    outline, top, face, bottom = hex_rgba("#1c2541"), hex_rgba("#3a4a70"), hex_rgba("#2a3656"), hex_rgba("#222b47")
+    for y in range(16):
+        for x in range(16):
+            if x in (0, 15) and y in (0, 15):
+                continue  # cantos arredondados
+            px[x, y] = outline if x in (0, 15) or y in (0, 15) else top if y == 1 else bottom if y == 14 else face
+    x0, y0 = (16 - text_width("HO")) // 2, 4
+    for dy, ch, ca in ((1, "#151c33", "#151c33"), (0, "#f4f1ea", "#fac665")):
+        draw_text(img, x0, y0 + dy, "H", ch)
+        draw_text(img, x0 + text_width("H") + 1, y0 + dy, "O", ca)
+    return img.resize((size, size), Image.NEAREST) if k > 1 else img
+
+
 def mark(size: int) -> Image.Image:
     if size == 32:
         return render_map(MARK_32)
