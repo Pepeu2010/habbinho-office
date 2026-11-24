@@ -49,6 +49,11 @@ describe('salas', () => {
     );
     expect([...names.values()]).toEqual(['applications/app', 'outro/app', 'habblaud']);
   });
+
+  it('pasta temporária de sessão vira "Rascunho" com o código curto', () => {
+    const names = roomDisplayNames(new Map([['1', '/tmp/scratch-2026-11-24-8944f5'], ['2', '/p/scratch-notas']]));
+    expect([...names.values()]).toEqual(['Rascunho 8944f5', 'scratch-notas']);
+  });
 });
 
 describe('NameStore', () => {

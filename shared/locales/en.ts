@@ -1514,6 +1514,7 @@ export const EN: Readonly<Record<string, string>> = {
   "Aprovado no Habbinho Office": "Approved in Habbinho Office",
   "Recusado no Habbinho Office": "Denied in Habbinho Office",
   "✋ {0} precisa de você em {1}: {2}": "✋ {0} needs you in {1}: {2}",
+  "Rascunho {0}": "Scratch {0}",
   "🏗️ Nova sala: {0}": "🏗️ New room: {0}",
   "👋 {0} chegou em {1}{2}": "👋 {0} arrived in {1}{2}",
   "🚪 {0} encerrou a sessão": "🚪 {0} ended the session",

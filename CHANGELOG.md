@@ -12,8 +12,13 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Carros e estacionamento no campus 3D.** Carros rodam nas duas faixas da rua, com faróis e lanternas acesos à
+  noite, e um estacionamento a noroeste do prédio tem vagas pintadas e carros parados.
 - **Novo nome: Habbinho Office.** O nome visível mudou em todos os idiomas, e a placa da recepção no 2D agora diz
-  "Habbinho Office" em duas linhas. O favicon virou o monograma "HO".
+  "Habbinho Office" em duas linhas. O favicon virou o monograma "HO", e a marquise e as placas do prédio 3D também
+  dizem "Habbinho Office".
+- **Salas de rascunho com nome legível.** A pasta temporária de sessão do app do Claude
+  (`scratch-2026-11-24-8944f5`) aparece como "Rascunho 8944f5".
 - **README com galeria.** Imagem de capa nova e galeria com as melhores cenas do escritório 3D (mesas, campus
   de dia e à noite, elenco e modo Passear) nos quatro idiomas.
 - **Escritório 3D mais bonitinho.** Reflexo suave de estúdio nos materiais, sombras de baixo num lavanda pastel,
@@ -101,6 +106,11 @@ do meio (0.**3**.0).
 
 ### Corrigido
 
+- **Nomes sobrepostos no 3D.** Quando dois nomes encostam na tela, fica o de quem está mais perto da câmera; quem tem
+  balão, está selecionado ou sob o mouse sempre aparece, e os "Visitante" cedem primeiro.
+- **Piso do corredor 3D.** O cimento manchado, que parecia sujo, virou placas de pedra clara.
+- **Clarão à noite no modo andar.** A luz de teto das salas ficava rente à câmera e estourava o chão, as paredes e a
+  cabeça do boneco num brilho branco. Ela subiu e ilumina a sala por igual.
 - **Sentar e levantar no modo andar.** Ao levantar de um banco, sofá ou poltrona o dono não fica mais em pé preso dentro do móvel: volta para onde estava (ou para o chão livre mais perto). O clicar-para-ir não trava mais num assento no meio do caminho, e a xícara some da mão quando o café acaba, mesmo sentado.
 - As salas dos perfis do OpenBot usam nomes legíveis no mapa, na barra lateral e nos detalhes. Projetos com pastas
   próprias e nomes definidos pelo usuário continuam com seus nomes.

@@ -1,10 +1,14 @@
 // Salas do escritório: identidade (cwd normalizado), nome exibido e posição (slot) no prédio.
+import { tr } from '../../shared/i18n';
 
 /** cwd normalizado: sem barras repetidas nem barra final. */
 export function normalizeCwd(cwd: string): string {
   const p = cwd.trim().replace(/\/{2,}/g, '/');
   return p.length > 1 ? p.replace(/\/+$/, '') : p;
 }
+
+/** Pasta temporária de sessão do app do Claude ("scratch-2026-11-24-8944f5"): vira "Rascunho 8944f5". */
+const SCRATCH = /^scratch-\d{4}-\d{2}-\d{2}-([0-9a-f]{4,})$/i;
 
 function segments(path: string): string[] {
   return path.split(/[\\/]+/).filter(Boolean);
@@ -19,6 +23,8 @@ export function roomDisplayNames(rooms: ReadonlyMap<string, string>): Map<string
   const depth = new Map([...rooms.keys()].map((id) => [id, 1]));
   const nameOf = (id: string) => {
     const s = segs.get(id)!;
+    const scratch = depth.get(id) === 1 ? SCRATCH.exec(s.at(-1) ?? '') : null;
+    if (scratch) return tr('Rascunho {0}', [scratch[1]]);
     return s.length ? s.slice(-depth.get(id)!).join('/') : rooms.get(id) || '/';
   };
   for (let guard = 0; guard < 16; guard++) {

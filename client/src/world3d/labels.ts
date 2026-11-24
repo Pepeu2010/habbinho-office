@@ -43,12 +43,16 @@ export class Labels {
   update(sim: Sim, avatars: (id: string) => AvatarView | undefined, camera: THREE.Camera, w: number, h: number, now: number, opts: WorldOptions, selected: string | null, hovered: string | null, npcs: Iterable<AvatarView> = [], panorama = false): void {
     const seen = new Set<string>();
     const npcIds = new Set<string>();
+    // rank 0 = sempre visível (selecionado, balão, ícone); 1 = nome de agente; 2 = "Visitante"
+    const shown: { t: Tag; x: number; y: number; z: number; rank: number }[] = [];
     if (!panorama) {
       for (const av of npcs) {
         npcIds.add(av.id);
-        if (!opts.showNames || !av.visible || !this.place(av, camera, w, h)) continue;
+        const at = opts.showNames && av.visible ? this.place(av, camera, w, h) : null;
+        if (!at) continue;
         seen.add(av.id);
         const t = this.tags.get(av.id) ?? this.make(av.id);
+        shown.push({ t, ...at, rank: 2 });
         if (t.nameText !== NPC_LABEL) {
           t.nameText = NPC_LABEL;
           t.name.textContent = NPC_LABEL;
@@ -129,7 +133,9 @@ export class Labels {
       t.el.style.zIndex = String(Math.round((1 - this.v.z) * 10000));
       t.el.classList.toggle('is-selected', ch.id === selected);
       t.el.hidden = false;
+      shown.push({ t, x, y, z: this.v.z, rank: bubble || icon || ch.id === selected || ch.id === hovered ? 0 : 1 });
     }
+    declutter(shown);
     for (const [id, t] of this.tags) {
       if (seen.has(id)) continue;
       if (!sim.chars.has(id) && !npcIds.has(id)) {
@@ -139,17 +145,17 @@ export class Labels {
     }
   }
 
-  /** Posiciona uma etiqueta de NPC; false = fora da tela. */
-  private place(av: AvatarView, camera: THREE.Camera, w: number, h: number): boolean {
+  /** Posiciona uma etiqueta de NPC; null = fora da tela. */
+  private place(av: AvatarView, camera: THREE.Camera, w: number, h: number): { x: number; y: number; z: number } | null {
     this.v.copy(av.head).project(camera);
-    if (this.v.z > 1 || this.v.z < -1) return false;
+    if (this.v.z > 1 || this.v.z < -1) return null;
     const x = (this.v.x * 0.5 + 0.5) * w;
     const y = (-this.v.y * 0.5 + 0.5) * h;
-    if (x < -80 || y < -40 || x > w + 80 || y > h + 40) return false;
+    if (x < -80 || y < -40 || x > w + 80 || y > h + 40) return null;
     const t = this.tags.get(av.id) ?? this.make(av.id);
     t.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
     t.el.style.zIndex = String(Math.round((1 - this.v.z) * 10000));
-    return true;
+    return { x, y, z: this.v.z };
   }
 
   private make(id: string): Tag {
@@ -176,6 +182,23 @@ export class Labels {
   destroy(): void {
     this.root.remove();
     this.tags.clear();
+  }
+}
+
+/**
+ * Esconde nomes que encostam num rótulo mais importante ou mais perto da câmera (quem tem balão fica sempre).
+ * shortcut: largura estimada pelo número de letras (sem medir o DOM a cada quadro); medir se a fonte mudar muito.
+ */
+export function declutter(shown: { t: Pick<Tag, 'el' | 'nameText'>; x: number; y: number; z: number; rank: number }[]): void {
+  shown.sort((a, b) => a.rank - b.rank || a.z - b.z);
+  const kept: { x: number; y: number; hw: number }[] = [];
+  for (const s of shown) {
+    const hw = s.t.nameText.length * 3.6 + 12;
+    if (s.rank > 0 && kept.some((k) => Math.abs(k.x - s.x) < k.hw + hw && Math.abs(k.y - s.y) < 20)) {
+      s.t.el.hidden = true;
+      continue;
+    }
+    kept.push({ x: s.x, y: s.y, hw });
   }
 }
 

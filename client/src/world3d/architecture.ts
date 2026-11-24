@@ -189,14 +189,19 @@ export class Architecture3D {
   }
 
   private brand(): THREE.MeshStandardMaterial {
-    return texMat('arquitetura:habblaud:marquise', 640, 144, (c, w, h) => {
+    return texMat('arquitetura:habbinho:marquise', 640, 144, (c, w, h) => {
       c.fillStyle = '#263b45';
       c.fillRect(0, 0, w, h);
-      c.fillStyle = '#f5ecdb';
-      c.font = '700 81px sans-serif';
-      c.textAlign = 'center';
+      // "HABBINHO" creme e "OFFICE" âmbar, como a placa do 2D; a fonte encolhe até caber na chapa
+      const a = 'HABBINHO ', b = 'OFFICE';
+      let size = 72;
+      do c.font = `700 ${size--}px sans-serif`; while (c.measureText(a + b).width > w - 84 && size > 30);
+      const x = (w - c.measureText(a + b).width) / 2;
       c.textBaseline = 'middle';
-      c.fillText('HABBLAUD', w / 2, h / 2 + 2, w - 84);
+      c.fillStyle = '#f5ecdb';
+      c.fillText(a, x, h / 2 + 2);
+      c.fillStyle = '#fac665';
+      c.fillText(b, x + c.measureText(a).width, h / 2 + 2);
     }, 0.24);
   }
 

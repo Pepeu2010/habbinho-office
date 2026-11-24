@@ -23,6 +23,7 @@ import { screenModeFor } from './screens';
 import { prop } from './props';
 import { Architecture3D } from './architecture';
 import { Campus } from './campus';
+import { inLot, Traffic } from './traffic';
 
 export const WALL_H = 2.05;
 export const WALL_LOW = 0.22;
@@ -94,6 +95,7 @@ export class Building3D {
   private view: BuildingView = 'office';
   private areas = new Map<string, AreaView>();
   private exterior = new THREE.Group();
+  private traffic?: Traffic;
   private campus?: Campus;
   private exteriorCols = -1;
   /** Telas das mesas, por id do móvel (a simulação diz quem está sentado em qual mesa). */
@@ -281,6 +283,7 @@ export class Building3D {
     this.architecture.setNight(night);
     this.night = night;
     this.campus?.update(now);
+    this.traffic?.update(dt, night);
     this.exteriorGlow.emissiveIntensity = 0.04 + night * 1.52;
     if (this.exteriorPool) this.exteriorPool.opacity = THREE.MathUtils.smoothstep(night, 0.16, 0.92) * 0.46;
     if (this.view !== 'office') return;
@@ -320,7 +323,7 @@ export class Building3D {
       }
       if (v.light) {
         // interruptor ligado de dia ainda acende um pouco (senão o clique não mostra nada)
-        const goal = this.lit(v) ? 16 * (this.lights.get(v.id) ? Math.max(night, 0.4) : night) : 0;
+        const goal = this.lit(v) ? 20 * (this.lights.get(v.id) ? Math.max(night, 0.4) : night) : 0;
         v.light.intensity += (goal - v.light.intensity) * k;
         v.light.visible = v.light.intensity > 0.02;
       }
@@ -401,6 +404,7 @@ export class Building3D {
     this.architecture.dispose();
     this.exteriorGlow.dispose();
     this.exteriorPool?.dispose();
+    this.traffic?.dispose();
   }
 
   // ================================================================= montagem
@@ -504,8 +508,9 @@ export class Building3D {
     }
     // ---- luz de teto (à noite)
     if (a.kind !== 'corridor' && !a.id.startsWith(CAMPUS_GARDEN) && !shell) {
-      const l = new THREE.PointLight('#ffd9ae', 0, 18, 1.1);
-      l.position.set(a.rect.x + a.rect.w / 2, WALL_H + 0.3, a.rect.y + 2 + (a.rect.h - 3) / 2);
+      // alta (3 m acima da parede): rente ao teto ela estourava a cabeça e o chão de quem passeia por baixo
+      const l = new THREE.PointLight('#ffd9ae', 0, 24, 1.1);
+      l.position.set(a.rect.x + a.rect.w / 2, WALL_H + 3, a.rect.y + 2 + (a.rect.h - 3) / 2);
       l.castShadow = false;
       g.add(l);
       view.light = l;
@@ -602,7 +607,9 @@ export class Building3D {
     const slab = put(this.exterior, rbox(cols * 16 + 0.4, 0.12, CORRIDOR_Y * 2 + 5 + 0.4, 0.04), mat('#d6d0c4', { rough: 0.9 }), cols * 8, -0.135, (CORRIDOR_Y * 2 + 5) / 2);
     slab.castShadow = false;
     campus.build(this.exterior, grass);
-    for (const p of ext.props) if (!campus.paved(px(p.x), px(p.y))) this.buildProp(this.exterior, p);
+    this.traffic?.dispose();
+    this.traffic = new Traffic(this.exterior, ext.lanes.map((l) => ({ z: px(l.y), dir: l.dir })), b.x, b.x + b.w, 7 + cols);
+    for (const p of ext.props) if (!campus.paved(px(p.x), px(p.y)) && !inLot(px(p.x), px(p.y), 1.5)) this.buildProp(this.exterior, p);
     this.buildEntrance();
     this.scatterGrass(cols, b, campus);
     mergeStatic(this.exterior, (o) => !!o.userData.dynamic);
@@ -676,6 +683,7 @@ export class Building3D {
       if (x > -4 && x < w + 1 && z > -1.5 && z < south + 2.2) continue; // prédio e entrada
       if (z > south + 1.8 && z < south + 11.3) continue; // calçadas e rua
       if (campus.paved(x, z)) continue;
+      if (inLot(x, z, 0.5)) continue;
       const src = n.pick(rnd() < 0.85 ? 'Grass' : 'Reed', Math.floor(rnd() * 1e6));
       if (!src) return;
       const t = src.clone();
@@ -946,19 +954,20 @@ function floorTex(kind: FloorKind, tint?: string, tint2?: string): THREE.Texture
         break;
       }
       case 'concrete': {
-        c.fillStyle = '#cfcac2';
+        // corredor: placas de pedra clara 2×1 m (o cimento manchado parecia sujo)
+        c.fillStyle = '#e6e0d5';
         c.fillRect(0, 0, w, h);
-        c.globalAlpha = 0.06;
-        for (let i = 0; i < 700; i++) {
-          c.fillStyle = rnd() < 0.5 ? '#000' : '#fff';
-          c.beginPath();
-          c.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 6.3);
-          c.fill();
+        for (let row = 0; row < 4; row++) {
+          const off = row % 2 ? w / 4 : 0;
+          for (let col = -1; col < 2; col++) {
+            const x0 = off + (col * w) / 2;
+            c.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '160,150,135'},${0.06 + rnd() * 0.08})`;
+            c.fillRect(x0 + 2, (row * h) / 4 + 2, w / 2 - 4, h / 4 - 4);
+            c.fillStyle = 'rgba(150,140,125,.45)';
+            c.fillRect(x0, (row * h) / 4, 2, h / 4);
+          }
+          c.fillRect(0, (row * h) / 4, w, 2);
         }
-        c.globalAlpha = 0.25;
-        c.fillStyle = '#9e978c';
-        c.fillRect(0, 0, w, 1);
-        c.fillRect(0, 0, 1, h);
         break;
       }
       case 'marble': {
